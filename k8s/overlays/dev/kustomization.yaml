@@ -1,0 +1,76 @@
+# ===================================
+# Development Overlay
+# ===================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: realtime-poll-dev
+
+# Inherit from base
+resources:
+  - ../../base
+
+# Name prefix for dev resources
+namePrefix: dev-
+
+# Common labels
+commonLabels:
+  environment: development
+
+# Patches for dev environment
+patches:
+  # Reduce replicas in dev
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: backend
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: frontend
+  
+  # Reduce HPA min replicas
+  - patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 3
+    target:
+      kind: HorizontalPodAutoscaler
+  
+  # Lower resource limits in dev
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "250m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "256Mi"
+    target:
+      kind: Deployment
+
+# ConfigMap patches
+configMapGenerator:
+  - name: realtime-poll-config
+    behavior: merge
+    literals:
+      - NODE_ENV=development
+      - RATE_LIMIT_MAX_REQUESTS=1000
+
+# Secret for dev (use sealed secrets in prod)
+secretGenerator:
+  - name: realtime-poll-secrets
+    literals:
+      - REDIS_PASSWORD=dev-redis-password-change-me
+      - SESSION_SECRET=dev-session-secret-32-chars-min
+
+generatorOptions:
+  disableNameSuffixHash: true

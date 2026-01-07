@@ -1,0 +1,85 @@
+# ===================================
+# Flux Notifications (Optional)
+# ===================================
+# Configure alerts for deployment events
+
+# Slack Provider (example)
+---
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Provider
+metadata:
+  name: slack
+  namespace: flux-system
+spec:
+  type: slack
+  channel: "#deployments"
+  secretRef:
+    name: slack-webhook-url
+
+# GitHub Provider (for commit status updates)
+---
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Provider
+metadata:
+  name: github
+  namespace: flux-system
+spec:
+  type: github
+  address: https://github.com/YOUR_ORG/nkp-webapp
+  secretRef:
+    name: github-token
+
+# Alert for deployment failures
+---
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Alert
+metadata:
+  name: deployment-failures
+  namespace: flux-system
+spec:
+  providerRef:
+    name: slack
+  eventSeverity: error
+  eventSources:
+    - kind: Kustomization
+      name: "*"
+      namespace: flux-system
+    - kind: HelmRelease
+      name: "*"
+      namespace: flux-system
+  summary: "Deployment failure in NKP-Webapp"
+
+# Alert for successful deployments (production only)
+---
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Alert
+metadata:
+  name: prod-deployments
+  namespace: flux-system
+spec:
+  providerRef:
+    name: slack
+  eventSeverity: info
+  eventSources:
+    - kind: Kustomization
+      name: nkp-webapp-prod
+      namespace: flux-system
+  summary: "Production deployment"
+  inclusionList:
+    - ".*succeeded.*"
+
+# GitHub commit status updates
+---
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Alert
+metadata:
+  name: github-status
+  namespace: flux-system
+spec:
+  providerRef:
+    name: github
+  eventSeverity: info
+  eventSources:
+    - kind: Kustomization
+      name: "*"
+      namespace: flux-system

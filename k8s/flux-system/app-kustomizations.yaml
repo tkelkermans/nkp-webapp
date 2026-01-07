@@ -1,0 +1,99 @@
+# ===================================
+# Flux Kustomizations for Application Deployment
+# ===================================
+
+# Development Environment
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: nkp-webapp-dev
+  namespace: flux-system
+spec:
+  interval: 5m
+  path: ./k8s/overlays/dev
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: nkp-webapp
+  # Health checks
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: dev-backend
+      namespace: realtime-poll-dev
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: dev-frontend
+      namespace: realtime-poll-dev
+  # Timeout for health checks
+  timeout: 5m
+  # Retry on failure
+  retryInterval: 1m
+
+# Production Environment
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: nkp-webapp-prod
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./k8s/overlays/prod
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: nkp-webapp
+  # Dependencies - wait for sealed-secrets controller
+  dependsOn:
+    - name: sealed-secrets
+  # Health checks with stricter requirements
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: backend
+      namespace: realtime-poll
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: frontend
+      namespace: realtime-poll
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: redis
+      namespace: realtime-poll
+  timeout: 10m
+  retryInterval: 2m
+  # Require manual approval for production (optional)
+  # suspend: true
+
+# Sealed Secrets Controller
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: sealed-secrets
+  namespace: flux-system
+spec:
+  interval: 1h
+  path: ./
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: sealed-secrets
+  targetNamespace: kube-system
+
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: sealed-secrets
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://github.com/bitnami-labs/sealed-secrets
+  ref:
+    tag: v0.24.5
+  ignore: |
+    /*
+    !/helm/sealed-secrets

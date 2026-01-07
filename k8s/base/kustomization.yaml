@@ -1,0 +1,32 @@
+# ===================================
+# Base Kustomization
+# ===================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: realtime-poll
+
+# Common labels for all resources
+commonLabels:
+  app.kubernetes.io/name: realtime-poll
+  app.kubernetes.io/managed-by: flux
+
+# Resources to deploy
+resources:
+  # Core
+  - namespace.yaml
+  - configmap.yaml
+  - rbac.yaml
+  
+  # Security
+  - network-policies.yaml
+  - resource-quota.yaml
+  - pdb.yaml
+  
+  # Components
+  - redis
+  - backend
+  - frontend
+  
+  # Networking (optional - comment out if using Cloudflare Tunnel)
+  # - ingress.yaml

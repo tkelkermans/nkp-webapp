@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  
+  /* Primary Colors */
+  --color-iris: #7855fa;
+  --color-charcoal: #131313;
+  --color-white: #ffffff;
+  
+  /* Secondary Colors (highlights only) */
+  --color-cyan: #1fdde9;
+  --color-lime: #92dd23;
+  --color-coral: #ff9178;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  background-color: var(--color-white);
+  color: var(--color-charcoal);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-iris);
+  outline-offset: 2px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+
+@layer utilities {
+  /* Primary gradient - Iris Purple */
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary-500 to-primary-400 bg-clip-text text-transparent;
+  }
+  
+  /* Nutanix primary gradient */
+  .bg-nutanix {
+    background: linear-gradient(135deg, #7855fa 0%, #5b3fd1 100%);
+  }
+  
+  /* Secondary accent gradients - use sparingly */
+  .bg-accent-cyan {
+    background: linear-gradient(135deg, #1fdde9 0%, #0cb8c4 100%);
+  }
+  
+  .bg-accent-lime {
+    background: linear-gradient(135deg, #92dd23 0%, #6fb31a 100%);
+  }
+  
+  .bg-accent-coral {
+    background: linear-gradient(135deg, #ff9178 0%, #ff7055 100%);
+  }
+}

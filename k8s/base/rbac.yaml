@@ -1,0 +1,38 @@
+# ===================================
+# RBAC - ServiceAccounts and minimal permissions
+# ===================================
+
+# Backend ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backend-sa
+  namespace: realtime-poll
+  labels:
+    app.kubernetes.io/name: realtime-poll
+    app.kubernetes.io/component: backend
+automountServiceAccountToken: false
+
+---
+# Frontend ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: frontend-sa
+  namespace: realtime-poll
+  labels:
+    app.kubernetes.io/name: realtime-poll
+    app.kubernetes.io/component: frontend
+automountServiceAccountToken: false
+
+---
+# Redis ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: redis-sa
+  namespace: realtime-poll
+  labels:
+    app.kubernetes.io/name: realtime-poll
+    app.kubernetes.io/component: redis
+automountServiceAccountToken: false
