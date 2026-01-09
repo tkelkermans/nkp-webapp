@@ -37,7 +37,7 @@ Le workflow utilise un **self-hosted runner** pour accéder au registry Harbor i
 
 | Variable | Exemple | Description |
 |----------|---------|-------------|
-| `HARBOR_REGISTRY` | `harbor.ntnxlab.ch` | URL du registry Harbor |
+| `HARBOR_REGISTRY` | `tke-nkpmgmt.ntnxlab.ch:5000` | URL du registry Harbor |
 | `HARBOR_PROJECT` | `nkp-webapp` | Nom du projet dans Harbor |
 
 ## Déclencheurs

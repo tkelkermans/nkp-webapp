@@ -15,13 +15,13 @@ commonLabels:
   environment: production
 
 # Image tags for production (updated by GitHub Actions on release)
-# Registry: Harbor (configure HARBOR_REGISTRY and HARBOR_PROJECT in GitHub vars)
+# Registry: Harbor (tke-nkpmgmt.ntnxlab.ch:5000)
 images:
   - name: realtime-poll-backend
-    newName: harbor.ntnxlab.ch/nkp-webapp/backend  # TODO: Update to your Harbor registry
+    newName: tke-nkpmgmt.ntnxlab.ch:5000/nkp-webapp/backend
     newTag: v1.0.0 # backend
   - name: realtime-poll-frontend
-    newName: harbor.ntnxlab.ch/nkp-webapp/frontend  # TODO: Update to your Harbor registry
+    newName: tke-nkpmgmt.ntnxlab.ch:5000/nkp-webapp/frontend
     newTag: v1.0.0 # frontend
 
 # Patches for production
