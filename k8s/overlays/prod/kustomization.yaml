@@ -14,14 +14,15 @@ resources:
 commonLabels:
   environment: production
 
-# Image tags for production (update via Flux image automation)
+# Image tags for production (updated by GitHub Actions on release)
+# Registry: Harbor (configure HARBOR_REGISTRY and HARBOR_PROJECT in GitHub vars)
 images:
   - name: realtime-poll-backend
-    newName: ghcr.io/tkelkermans/realtime-poll-backend
-    newTag: v1.0.0
+    newName: harbor.ntnxlab.ch/nkp-webapp/backend  # TODO: Update to your Harbor registry
+    newTag: v1.0.0 # backend
   - name: realtime-poll-frontend
-    newName: ghcr.io/tkelkermans/realtime-poll-frontend
-    newTag: v1.0.0
+    newName: harbor.ntnxlab.ch/nkp-webapp/frontend  # TODO: Update to your Harbor registry
+    newTag: v1.0.0 # frontend
 
 # Patches for production
 patches:
