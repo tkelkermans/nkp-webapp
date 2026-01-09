@@ -7,6 +7,13 @@
 
 Application de sondage en temps réel conçue pour les démonstrations Nutanix Kubernetes Platform (NKP). Déployée avec GitOps via Flux CD.
 
+## 🌐 URLs
+
+| Environnement | URL |
+|---------------|-----|
+| **Production** | https://tke-poll.ntnxlab.ch |
+| **Development** | https://dev.tke-poll.ntnxlab.ch |
+
 ## 🎨 Nutanix Brand Colors
 
 | Type | Color | Hex | Usage |
@@ -23,31 +30,26 @@ Application de sondage en temps réel conçue pour les démonstrations Nutanix K
 - ✅ Sondages en temps réel (WebSocket)
 - ✅ QR Code automatique pour partage
 - ✅ GitOps avec Flux CD
-- ✅ Secrets chiffrés (Sealed Secrets)
+- ✅ External Secrets Operator
+- ✅ Traefik Ingress (kommander-traefik)
+- ✅ cert-manager (kommander-acme-issuer)
+- ✅ External-DNS
 - ✅ Network Policies (Zero Trust)
 - ✅ Pod Security Standards (Restricted)
-- ✅ HPA (Auto-scaling)
-- ✅ PDB (Haute disponibilité)
 
-## 📁 Structure Kubernetes
+## 📁 Structure
 
 ```
-k8s/
-├── base/                    # Ressources partagées
-│   ├── redis/
-│   ├── backend/
-│   ├── frontend/
-│   ├── network-policies.yaml
-│   ├── rbac.yaml
-│   └── kustomization.yaml
-├── overlays/
-│   ├── dev/                 # Overlay développement
-│   └── prod/                # Overlay production
-│       └── sealed-secrets/  # Secrets chiffrés
-└── flux-system/             # Configuration Flux
-    ├── sources.yaml
-    ├── app-kustomizations.yaml
-    └── notifications.yaml
+├── backend/                 # API Node.js + Socket.io
+├── frontend/                # Next.js 15 + React 19
+├── k8s/
+│   ├── base/               # Ressources Kubernetes partagées
+│   ├── overlays/
+│   │   ├── dev/            # dev.tke-poll.ntnxlab.ch
+│   │   └── prod/           # tke-poll.ntnxlab.ch
+│   └── flux-system/        # Configuration Flux CD
+├── docker-compose.yml      # Production locale
+└── docker-compose.dev.yml  # Développement avec hot-reload
 ```
 
 ## 🛠️ Démarrage Local
@@ -56,135 +58,100 @@ k8s/
 # Docker Compose
 docker compose -f docker-compose.dev.yml up
 
-# Ou manuellement
-docker run -d --name poll-redis -p 6379:6379 redis:7.4-alpine
-cd backend && npm install && npm run dev
-cd frontend && npm install && npm run dev
+# Accéder à l'application
+open http://localhost:3000
 ```
 
-## ☸️ Déploiement GitOps avec Flux
+## ☸️ Déploiement Kubernetes
 
-### 1. Installer Flux sur le cluster
+### Prérequis sur le cluster
+
+- Traefik Ingress Controller (`kommander-traefik`)
+- cert-manager avec ClusterIssuer `kommander-acme-issuer`
+- External-DNS configuré pour `ntnxlab.ch`
+- External Secrets Operator avec ClusterSecretStore
+
+### 1. Configurer les secrets
+
+Dans votre backend de secrets (Vault, AWS SM, etc.):
 
 ```bash
-# Bootstrap Flux (remplacez YOUR_ORG)
+# Production
+vault kv put secret/realtime-poll/secrets \
+  redis-password="$(openssl rand -base64 32)" \
+  session-secret="$(openssl rand -base64 32)"
+
+# Development
+vault kv put secret/realtime-poll/dev/secrets \
+  redis-password="dev-password" \
+  session-secret="dev-session-secret"
+```
+
+### 2. Bootstrap Flux
+
+```bash
 flux bootstrap github \
-  --owner=YOUR_ORG \
+  --owner=tkelkermans \
   --repository=nkp-webapp \
   --branch=main \
-  --path=k8s/flux-system \
-  --personal
+  --path=k8s/flux-system
 ```
 
-### 2. Créer les Sealed Secrets
+### 3. Vérifier
 
 ```bash
-# Installer kubeseal
-brew install kubeseal
-
-# Générer les sealed secrets pour production
-kubectl create secret generic realtime-poll-secrets \
-  --namespace=realtime-poll \
-  --from-literal=REDIS_PASSWORD='$(openssl rand -base64 32)' \
-  --from-literal=SESSION_SECRET='$(openssl rand -base64 32)' \
-  --dry-run=client -o yaml | \
-  kubeseal --format yaml > k8s/overlays/prod/sealed-secrets/secrets.yaml
-```
-
-### 3. Personnaliser les URLs
-
-Éditez `k8s/overlays/prod/kustomization.yaml` :
-
-```yaml
-# Remplacez yourcompany.com par votre domaine
-- poll.yourcompany.com
-- api.poll.yourcompany.com
-```
-
-### 4. Push & Deploy
-
-```bash
-git add .
-git commit -m "feat: configure production deployment"
-git push origin main
-
-# Flux synchronise automatiquement !
-```
-
-### 5. Vérifier le déploiement
-
-```bash
-# État des kustomizations
+# Flux status
 flux get kustomizations
 
 # Pods
 kubectl get pods -n realtime-poll
 
-# Logs Flux
-flux logs --follow
+# Certificats
+kubectl get certificates -n realtime-poll
+
+# External Secrets
+kubectl get externalsecrets -n realtime-poll
 ```
 
-## 🔐 Gestion des Secrets
+## 🔐 Architecture Sécurité
 
-### Option A: Sealed Secrets (Recommandé)
-
-Les secrets sont chiffrés avec la clé du cluster et peuvent être commitée en toute sécurité.
-
-```bash
-# Voir les sealed secrets
-kubectl get sealedsecrets -n realtime-poll
 ```
-
-### Option B: External Secrets
-
-Pour HashiCorp Vault, AWS Secrets Manager, etc. Voir `k8s/base/external-secrets.yaml`.
-
-## 🔒 Sécurité Appliquée
-
-| Pratique | Implémentation |
-|----------|----------------|
-| Pod Security Standards | `restricted` policy sur le namespace |
-| Network Policies | Zero-trust, deny-all par défaut |
-| RBAC | ServiceAccounts dédiés, pas de token auto-monté |
-| Secrets | Sealed Secrets (chiffrés) |
-| Read-only FS | Conteneurs avec `readOnlyRootFilesystem: true` |
-| Non-root | Tous les conteneurs en `runAsNonRoot: true` |
-| Resource Limits | Quotas et LimitRanges |
-| Seccomp | `RuntimeDefault` profile |
+┌─────────────────────────────────────────────────────────────┐
+│                     Internet                                 │
+└─────────────────────┬───────────────────────────────────────┘
+                      │ HTTPS (443)
+                      ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Traefik (kommander-traefik)                                │
+│  + cert-manager (kommander-acme-issuer)                     │
+│  + Security Headers Middleware                               │
+└─────────────────────┬───────────────────────────────────────┘
+                      │
+    ┌─────────────────┼─────────────────┐
+    │                 │                 │
+    ▼                 ▼                 ▼
+┌────────┐      ┌──────────┐     ┌───────────┐
+│Frontend│      │ Backend  │     │  Redis    │
+│ :3000  │ ──── │  :3001   │ ─── │  :6379    │
+└────────┘      └──────────┘     └───────────┘
+    │                 │                 │
+    └─────────────────┼─────────────────┘
+                      │
+              Network Policies
+              (Zero Trust)
+```
 
 ## 📊 Observabilité
 
-### Prometheus Metrics
-
-Le backend expose des métriques sur `/api/health`.
-
-### Flux Notifications
-
-Configurez les alertes Slack/Teams dans `k8s/flux-system/notifications.yaml`.
-
-## 🔄 Image Automation
-
-Flux peut automatiquement mettre à jour les tags d'images. Voir `k8s/flux-system/image-automation.yaml`.
-
 ```bash
-# Activer l'automation
-kubectl apply -f k8s/flux-system/image-automation.yaml
-```
+# Logs Flux
+flux logs --follow
 
-## 📋 Commandes Utiles
+# Logs applicatifs
+kubectl logs -f -l app.kubernetes.io/name=realtime-poll -n realtime-poll
 
-```bash
-# Forcer la synchronisation
-flux reconcile kustomization nkp-webapp-prod
-
-# Suspendre les déploiements
-flux suspend kustomization nkp-webapp-prod
-
-# Reprendre
-flux resume kustomization nkp-webapp-prod
-
-# Voir les différences avant apply
-flux diff kustomization nkp-webapp-prod
+# Events
+kubectl get events -n realtime-poll --sort-by='.lastTimestamp'
 ```
 
 ---

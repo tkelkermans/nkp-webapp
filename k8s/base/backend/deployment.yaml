@@ -57,42 +57,52 @@ spec:
               protocol: TCP
           
           env:
+            # 0: NODE_ENV
             - name: NODE_ENV
               valueFrom:
                 configMapKeyRef:
                   name: realtime-poll-config
                   key: NODE_ENV
+            # 1: PORT
             - name: PORT
               value: "3001"
+            # 2: REDIS_HOST
             - name: REDIS_HOST
               valueFrom:
                 configMapKeyRef:
                   name: realtime-poll-config
                   key: REDIS_HOST
+            # 3: REDIS_PORT
             - name: REDIS_PORT
               valueFrom:
                 configMapKeyRef:
                   name: realtime-poll-config
                   key: REDIS_PORT
+            # 4: REDIS_PASSWORD
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: realtime-poll-secrets
                   key: REDIS_PASSWORD
+            # 5: REDIS_URL (constructed)
             - name: REDIS_URL
               value: "redis://:$(REDIS_PASSWORD)@$(REDIS_HOST):$(REDIS_PORT)"
+            # 6: SESSION_SECRET
             - name: SESSION_SECRET
               valueFrom:
                 secretKeyRef:
                   name: realtime-poll-secrets
                   key: SESSION_SECRET
-            - name: CORS_ORIGIN
-              value: "https://poll.example.com"
+            # 7: RATE_LIMIT_WINDOW_MS
             - name: RATE_LIMIT_WINDOW_MS
               valueFrom:
                 configMapKeyRef:
                   name: realtime-poll-config
                   key: RATE_LIMIT_WINDOW_MS
+            # 8: CORS_ORIGIN (patched per environment)
+            - name: CORS_ORIGIN
+              value: "https://tke-poll.ntnxlab.ch"
+            # 9: RATE_LIMIT_MAX_REQUESTS
             - name: RATE_LIMIT_MAX_REQUESTS
               valueFrom:
                 configMapKeyRef:

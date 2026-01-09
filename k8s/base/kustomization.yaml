@@ -23,10 +23,13 @@ resources:
   - resource-quota.yaml
   - pdb.yaml
   
+  # Secrets (External Secrets Operator)
+  - external-secrets.yaml
+  
   # Components
   - redis
   - backend
   - frontend
   
-  # Networking (optional - comment out if using Cloudflare Tunnel)
-  # - ingress.yaml
+  # Networking
+  - ingress.yaml

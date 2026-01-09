@@ -2,54 +2,98 @@
 
 Ce dossier contient les manifestes Kubernetes organisés pour GitOps avec Flux CD.
 
+## 🌐 URLs
+
+| Environnement | URL |
+|---------------|-----|
+| **Production** | https://tke-poll.ntnxlab.ch |
+| **Development** | https://dev.tke-poll.ntnxlab.ch |
+
 ## 📁 Structure
 
 ```
 k8s/
 ├── base/                    # Ressources de base (partagées)
-│   ├── namespace.yaml
-│   ├── configmap.yaml
+│   ├── namespace.yaml       # Pod Security Standards
+│   ├── configmap.yaml       # Configuration non-sensible
+│   ├── rbac.yaml            # ServiceAccounts
+│   ├── network-policies.yaml
+│   ├── external-secrets.yaml # ESO ExternalSecret
+│   ├── ingress.yaml         # Traefik + cert-manager
 │   ├── redis/
 │   ├── backend/
 │   ├── frontend/
 │   └── kustomization.yaml
 ├── overlays/
-│   ├── dev/                 # Configuration développement
-│   │   ├── kustomization.yaml
-│   │   └── patches/
-│   └── prod/                # Configuration production
-│       ├── kustomization.yaml
-│       ├── patches/
-│       └── sealed-secrets/
-├── flux-system/             # Configuration Flux CD
-│   ├── gotk-components.yaml
-│   ├── gotk-sync.yaml
-│   └── kustomization.yaml
-└── README.md
+│   ├── dev/                 # dev.tke-poll.ntnxlab.ch
+│   └── prod/                # tke-poll.ntnxlab.ch
+└── flux-system/             # Configuration Flux CD
 ```
 
-## 🔐 Gestion des Secrets
+## 🔧 Configuration
 
-### Option 1: Sealed Secrets (Recommandé pour démarrer)
+### Ingress Controller
+
+- **Type**: Traefik
+- **IngressClass**: `kommander-traefik`
+- **TLS**: Port 443 (websecure)
+
+### Certificats SSL
+
+- **Issuer**: cert-manager ClusterIssuer
+- **Nom**: `kommander-acme-issuer`
+- **Automatique**: Let's Encrypt via ACME
+
+### DNS
+
+- **Provider**: External-DNS
+- **Domaines**:
+  - `tke-poll.ntnxlab.ch` (production)
+  - `dev.tke-poll.ntnxlab.ch` (development)
+
+## 🔐 Gestion des Secrets (External Secrets Operator)
+
+### Configuration requise
+
+1. **External Secrets Operator** doit être installé dans le cluster
+2. Un **ClusterSecretStore** doit pointer vers votre backend de secrets
+
+### Structure des secrets
+
+```yaml
+# Dans votre backend de secrets (Vault, AWS SM, Azure KV, etc.)
+realtime-poll/secrets:
+  redis-password: "your-strong-redis-password"
+  session-secret: "your-32-char-session-secret"
+
+realtime-poll/dev/secrets:
+  redis-password: "dev-redis-password"
+  session-secret: "dev-session-secret"
+```
+
+### Exemple: Créer les secrets dans Vault
 
 ```bash
-# Installer le controller
-kubectl apply -f https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.24.5/controller.yaml
+# Production
+vault kv put secret/realtime-poll/secrets \
+  redis-password="$(openssl rand -base64 32)" \
+  session-secret="$(openssl rand -base64 32)"
 
-# Installer kubeseal CLI
-brew install kubeseal
-
-# Créer un sealed secret
-kubectl create secret generic realtime-poll-secrets \
-  --from-literal=REDIS_PASSWORD=your-password \
-  --from-literal=SESSION_SECRET=your-session-secret \
-  --dry-run=client -o yaml | \
-  kubeseal --format yaml > k8s/overlays/prod/sealed-secrets/secrets.yaml
+# Development
+vault kv put secret/realtime-poll/dev/secrets \
+  redis-password="dev-redis-password" \
+  session-secret="dev-session-secret"
 ```
 
-### Option 2: External Secrets (Pour HashiCorp Vault, AWS SM, etc.)
+### Vérifier la synchronisation
 
-Voir `k8s/base/external-secrets.yaml`
+```bash
+# Voir l'état des ExternalSecrets
+kubectl get externalsecrets -n realtime-poll
+
+# Vérifier que le secret K8s est créé
+kubectl get secrets realtime-poll-secrets -n realtime-poll
+```
 
 ## 🔄 Déploiement avec Flux
 
@@ -57,68 +101,63 @@ Voir `k8s/base/external-secrets.yaml`
 
 ```bash
 flux bootstrap github \
-  --owner=<GITHUB_USER> \
+  --owner=tkelkermans \
   --repository=nkp-webapp \
   --branch=main \
   --path=k8s/flux-system \
   --personal
 ```
 
-### 2. Créer les sources
+### 2. Vérifier le déploiement
 
 ```bash
-# Source Git
-flux create source git nkp-webapp \
-  --url=https://github.com/<GITHUB_USER>/nkp-webapp \
-  --branch=main \
-  --interval=1m
+# État des kustomizations
+flux get kustomizations
 
-# Kustomization pour dev
-flux create kustomization nkp-webapp-dev \
-  --source=nkp-webapp \
-  --path="./k8s/overlays/dev" \
-  --prune=true \
-  --interval=5m
+# Pods
+kubectl get pods -n realtime-poll
+kubectl get pods -n realtime-poll-dev
 
-# Kustomization pour prod
-flux create kustomization nkp-webapp-prod \
-  --source=nkp-webapp \
-  --path="./k8s/overlays/prod" \
-  --prune=true \
-  --interval=5m \
-  --health-check="Deployment/backend.realtime-poll" \
-  --health-check="Deployment/frontend.realtime-poll"
+# Ingress et certificats
+kubectl get ingress -n realtime-poll
+kubectl get certificates -n realtime-poll
+
+# External Secrets
+kubectl get externalsecrets -A
 ```
 
-## 📊 Observabilité
+### 3. Forcer une synchronisation
 
-### Prometheus ServiceMonitor
-
-Les métriques sont exposées via `/api/metrics` sur le backend.
-
-### Alerting
-
-Configurer des alertes Flux pour les déploiements échoués :
-
-```yaml
-apiVersion: notification.toolkit.fluxcd.io/v1beta2
-kind: Alert
-metadata:
-  name: deployment-alerts
-spec:
-  providerRef:
-    name: slack
-  eventSeverity: error
-  eventSources:
-    - kind: Kustomization
-      name: '*'
+```bash
+flux reconcile kustomization nkp-webapp-prod --with-source
 ```
 
 ## 🔒 Sécurité
 
-- ✅ Network Policies isolant les pods
-- ✅ Pod Security Standards (restricted)
-- ✅ ServiceAccounts dédiés avec RBAC minimal
-- ✅ Secrets chiffrés (Sealed Secrets)
-- ✅ Resource Quotas et Limit Ranges
-- ✅ Pod Disruption Budgets pour la haute disponibilité
+| Pratique | Implémentation |
+|----------|----------------|
+| Pod Security Standards | `restricted` policy |
+| Network Policies | Zero-trust, deny-all |
+| RBAC | ServiceAccounts dédiés |
+| Secrets | External Secrets Operator |
+| TLS | cert-manager + Let's Encrypt |
+| Headers | Traefik Middleware |
+
+## 📋 Commandes Utiles
+
+```bash
+# Logs Flux
+flux logs --follow
+
+# Suspendre les déploiements
+flux suspend kustomization nkp-webapp-prod
+
+# Reprendre
+flux resume kustomization nkp-webapp-prod
+
+# Voir les différences avant apply
+flux diff kustomization nkp-webapp-prod
+
+# Debug External Secrets
+kubectl describe externalsecret realtime-poll-secrets -n realtime-poll
+```

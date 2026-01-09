@@ -61,11 +61,11 @@ spec:
                   key: NODE_ENV
             - name: PORT
               value: "3000"
-            # These will be set in overlays based on environment
+            # API URL - same host, different path
             - name: NEXT_PUBLIC_API_URL
-              value: "https://api.poll.example.com"
+              value: "https://tke-poll.ntnxlab.ch"
             - name: NEXT_PUBLIC_WS_URL
-              value: "https://api.poll.example.com"
+              value: "https://tke-poll.ntnxlab.ch"
           
           # Security context for container
           securityContext:

@@ -56,6 +56,33 @@ patches:
         value: "256Mi"
     target:
       kind: Deployment
+  
+  # Dev Ingress - hostname and TLS
+  - target:
+      kind: Ingress
+      name: realtime-poll-ingress
+    patch: |-
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: dev.tke-poll.ntnxlab.ch
+      - op: replace
+        path: /spec/tls/0/secretName
+        value: dev-realtime-poll-tls
+      - op: replace
+        path: /spec/rules/0/host
+        value: dev.tke-poll.ntnxlab.ch
+  
+  # Dev External Secret - different path
+  - target:
+      kind: ExternalSecret
+      name: realtime-poll-secrets
+    patch: |-
+      - op: replace
+        path: /spec/data/0/remoteRef/key
+        value: realtime-poll/dev/secrets
+      - op: replace
+        path: /spec/data/1/remoteRef/key
+        value: realtime-poll/dev/secrets
 
 # ConfigMap patches
 configMapGenerator:
@@ -64,13 +91,6 @@ configMapGenerator:
     literals:
       - NODE_ENV=development
       - RATE_LIMIT_MAX_REQUESTS=1000
-
-# Secret for dev (use sealed secrets in prod)
-secretGenerator:
-  - name: realtime-poll-secrets
-    literals:
-      - REDIS_PASSWORD=dev-redis-password-change-me
-      - SESSION_SECRET=dev-session-secret-32-chars-min
 
 generatorOptions:
   disableNameSuffixHash: true

@@ -70,7 +70,7 @@ metadata:
   name: backend
   namespace: flux-system
 spec:
-  image: ghcr.io/YOUR_ORG/realtime-poll-backend
+  image: ghcr.io/tkelkermans/realtime-poll-backend
   interval: 5m
 
 ---
@@ -80,5 +80,5 @@ metadata:
   name: frontend
   namespace: flux-system
 spec:
-  image: ghcr.io/YOUR_ORG/realtime-poll-frontend
+  image: ghcr.io/tkelkermans/realtime-poll-frontend
   interval: 5m

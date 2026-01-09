@@ -45,9 +45,9 @@ spec:
   sourceRef:
     kind: GitRepository
     name: nkp-webapp
-  # Dependencies - wait for sealed-secrets controller
+  # Dependencies - wait for external-secrets controller
   dependsOn:
-    - name: sealed-secrets
+    - name: external-secrets
   # Health checks with stricter requirements
   healthChecks:
     - apiVersion: apps/v1
@@ -64,36 +64,29 @@ spec:
       namespace: realtime-poll
   timeout: 10m
   retryInterval: 2m
-  # Require manual approval for production (optional)
-  # suspend: true
 
-# Sealed Secrets Controller
+# External Secrets Operator (if not already installed)
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: sealed-secrets
+  name: external-secrets
   namespace: flux-system
 spec:
   interval: 1h
-  path: ./
   prune: true
   sourceRef:
-    kind: GitRepository
-    name: sealed-secrets
-  targetNamespace: kube-system
+    kind: HelmRepository
+    name: external-secrets
+  path: ./
+  targetNamespace: external-secrets
 
 ---
 apiVersion: source.toolkit.fluxcd.io/v1
-kind: GitRepository
+kind: HelmRepository
 metadata:
-  name: sealed-secrets
+  name: external-secrets
   namespace: flux-system
 spec:
   interval: 1h
-  url: https://github.com/bitnami-labs/sealed-secrets
-  ref:
-    tag: v0.24.5
-  ignore: |
-    /*
-    !/helm/sealed-secrets
+  url: https://charts.external-secrets.io

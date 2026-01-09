@@ -9,10 +9,6 @@ namespace: realtime-poll
 # Inherit from base
 resources:
   - ../../base
-  # Sealed Secrets for production
-  - sealed-secrets/secrets.yaml
-  # Ingress for production
-  - ../../base/ingress.yaml
 
 # Common labels
 commonLabels:
@@ -21,36 +17,37 @@ commonLabels:
 # Image tags for production (update via Flux image automation)
 images:
   - name: realtime-poll-backend
-    newName: ghcr.io/your-org/realtime-poll-backend
+    newName: ghcr.io/tkelkermans/realtime-poll-backend
     newTag: v1.0.0
   - name: realtime-poll-frontend
-    newName: ghcr.io/your-org/realtime-poll-frontend
+    newName: ghcr.io/tkelkermans/realtime-poll-frontend
     newTag: v1.0.0
 
 # Patches for production
 patches:
-  # Update URLs for production
-  - patch: |-
+  # Production Ingress - hostname and TLS (already correct in base)
+  - target:
+      kind: Ingress
+      name: realtime-poll-ingress
+    patch: |-
       - op: replace
-        path: /spec/template/spec/containers/0/env/3/value
-        value: "https://api.poll.yourcompany.com"
+        path: /spec/tls/0/hosts/0
+        value: tke-poll.ntnxlab.ch
       - op: replace
-        path: /spec/template/spec/containers/0/env/4/value
-        value: "https://api.poll.yourcompany.com"
-    target:
-      kind: Deployment
-      name: frontend
+        path: /spec/tls/0/secretName
+        value: realtime-poll-tls
+      - op: replace
+        path: /spec/rules/0/host
+        value: tke-poll.ntnxlab.ch
   
-  # Update CORS origin for production
-  - patch: |-
-      - op: add
-        path: /spec/template/spec/containers/0/env/-
-        value:
-          name: CORS_ORIGIN
-          value: "https://poll.yourcompany.com"
-    target:
+  # Production CORS origin
+  - target:
       kind: Deployment
       name: backend
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/8/value
+        value: "https://tke-poll.ntnxlab.ch"
   
   # Higher resource limits for production
   - patch: |-
@@ -63,23 +60,6 @@ patches:
     target:
       kind: Deployment
       name: backend
-  
-  # Update ingress hosts
-  - target:
-      kind: Ingress
-      name: realtime-poll-ingress
-    patch: |-
-      - op: replace
-        path: /spec/tls/0/hosts
-        value:
-          - poll.yourcompany.com
-          - api.poll.yourcompany.com
-      - op: replace
-        path: /spec/rules/0/host
-        value: poll.yourcompany.com
-      - op: replace
-        path: /spec/rules/1/host
-        value: api.poll.yourcompany.com
 
 # ConfigMap for production
 configMapGenerator:

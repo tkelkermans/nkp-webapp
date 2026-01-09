@@ -1,5 +1,5 @@
 # ===================================
-# Ingress - HTTPS with proper annotations
+# Ingress - Traefik with cert-manager
 # ===================================
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -9,48 +9,49 @@ metadata:
   labels:
     app.kubernetes.io/name: realtime-poll
   annotations:
-    # NGINX Ingress Controller
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    # Traefik Ingress Controller
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
     
     # WebSocket support
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-    nginx.ingress.kubernetes.io/websocket-services: "backend-service"
+    traefik.ingress.kubernetes.io/service.sticky.cookie: "true"
+    traefik.ingress.kubernetes.io/service.sticky.cookie.name: "poll-sticky"
+    traefik.ingress.kubernetes.io/service.sticky.cookie.secure: "true"
+    traefik.ingress.kubernetes.io/service.sticky.cookie.samesite: "strict"
     
-    # Sticky sessions for WebSocket
-    nginx.ingress.kubernetes.io/affinity: "cookie"
-    nginx.ingress.kubernetes.io/session-cookie-name: "poll-sticky"
-    nginx.ingress.kubernetes.io/session-cookie-expires: "172800"
-    nginx.ingress.kubernetes.io/session-cookie-max-age: "172800"
-    nginx.ingress.kubernetes.io/session-cookie-samesite: "Strict"
-    nginx.ingress.kubernetes.io/session-cookie-secure: "true"
+    # Cert-manager
+    cert-manager.io/cluster-issuer: "kommander-acme-issuer"
     
     # Security headers
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      add_header X-Frame-Options "SAMEORIGIN" always;
-      add_header X-Content-Type-Options "nosniff" always;
-      add_header X-XSS-Protection "1; mode=block" always;
-      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    
-    # Rate limiting
-    nginx.ingress.kubernetes.io/limit-rps: "50"
-    nginx.ingress.kubernetes.io/limit-connections: "100"
-    
-    # Cert-manager (uncomment when cert-manager is installed)
-    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    traefik.ingress.kubernetes.io/router.middlewares: realtime-poll-security-headers@kubernetescrd
 spec:
-  ingressClassName: nginx
+  ingressClassName: kommander-traefik
   tls:
     - hosts:
-        - poll.example.com
-        - api.poll.example.com
+        - tke-poll.ntnxlab.ch
       secretName: realtime-poll-tls
   rules:
-    # Frontend
-    - host: poll.example.com
+    # Frontend + Backend on same host (API under /api path)
+    - host: tke-poll.ntnxlab.ch
       http:
         paths:
+          # Backend API
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend-service
+                port:
+                  number: 3001
+          # Socket.io
+          - path: /socket.io
+            pathType: Prefix
+            backend:
+              service:
+                name: backend-service
+                port:
+                  number: 3001
+          # Frontend (catch-all)
           - path: /
             pathType: Prefix
             backend:
@@ -58,14 +59,21 @@ spec:
                 name: frontend-service
                 port:
                   number: 3000
-    # Backend API
-    - host: api.poll.example.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: backend-service
-                port:
-                  number: 3001
+
+---
+# ===================================
+# Traefik Middleware for Security Headers
+# ===================================
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: security-headers
+  namespace: realtime-poll
+spec:
+  headers:
+    frameDeny: true
+    contentTypeNosniff: true
+    browserXssFilter: true
+    referrerPolicy: "strict-origin-when-cross-origin"
+    customResponseHeaders:
+      X-Frame-Options: "SAMEORIGIN"
