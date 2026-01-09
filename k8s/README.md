@@ -51,24 +51,32 @@ k8s/
   - `tke-poll.ntnxlab.ch` (production)
   - `dev.tke-poll.ntnxlab.ch` (development)
 
-## 🔐 Gestion des Secrets (External Secrets Operator)
+## 🔐 Gestion des Secrets
 
-### Configuration requise
+### Production : External Secrets Operator (ESO)
 
 1. **External Secrets Operator** doit être installé dans le cluster
 2. Un **ClusterSecretStore** doit pointer vers votre backend de secrets
-
-### Structure des secrets
 
 ```yaml
 # Dans votre backend de secrets (Vault, AWS SM, Azure KV, etc.)
 realtime-poll/secrets:
   redis-password: "your-strong-redis-password"
   session-secret: "your-32-char-session-secret"
+```
 
-realtime-poll/dev/secrets:
-  redis-password: "dev-redis-password"
-  session-secret: "dev-session-secret"
+### Development : Secrets en clair (pas d'ESO requis)
+
+L'environnement dev utilise des secrets générés directement par Kustomize.
+Aucune dépendance externe n'est requise.
+
+```yaml
+# Définis dans k8s/overlays/dev/kustomization.yaml
+secretGenerator:
+  - name: realtime-poll-secrets
+    literals:
+      - REDIS_PASSWORD=dev-redis-password-change-me
+      - SESSION_SECRET=dev-session-secret-32-characters
 ```
 
 ### Exemple: Créer les secrets dans Vault

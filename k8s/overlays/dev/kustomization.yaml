@@ -1,6 +1,9 @@
 # ===================================
 # Development Overlay
 # ===================================
+# Dev environment uses plain secrets (no ESO required)
+# This simplifies local/dev cluster deployments
+#
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
@@ -72,17 +75,33 @@ patches:
         path: /spec/rules/0/host
         value: dev.tke-poll.ntnxlab.ch
   
-  # Dev External Secret - different path
+  # Dev frontend - update URLs
+  - target:
+      kind: Deployment
+      name: frontend
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/2/value
+        value: "https://dev.tke-poll.ntnxlab.ch"
+      - op: replace
+        path: /spec/template/spec/containers/0/env/3/value
+        value: "https://dev.tke-poll.ntnxlab.ch"
+  
+  # Dev backend - update CORS
+  - target:
+      kind: Deployment
+      name: backend
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/8/value
+        value: "https://dev.tke-poll.ntnxlab.ch"
+  
+  # DELETE ExternalSecret - dev uses plain secrets
   - target:
       kind: ExternalSecret
       name: realtime-poll-secrets
     patch: |-
-      - op: replace
-        path: /spec/data/0/remoteRef/key
-        value: realtime-poll/dev/secrets
-      - op: replace
-        path: /spec/data/1/remoteRef/key
-        value: realtime-poll/dev/secrets
+      $patch: delete
 
 # ConfigMap patches
 configMapGenerator:
@@ -91,6 +110,13 @@ configMapGenerator:
     literals:
       - NODE_ENV=development
       - RATE_LIMIT_MAX_REQUESTS=1000
+
+# Plain secrets for dev (no ESO required)
+secretGenerator:
+  - name: realtime-poll-secrets
+    literals:
+      - REDIS_PASSWORD=dev-redis-password-change-me
+      - SESSION_SECRET=dev-session-secret-32-characters
 
 generatorOptions:
   disableNameSuffixHash: true
