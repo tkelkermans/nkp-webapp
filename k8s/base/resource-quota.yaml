@@ -1,0 +1,55 @@
+# ===================================
+# Resource Quota - Namespace limits
+# ===================================
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: realtime-poll-quota
+  namespace: realtime-poll
+spec:
+  hard:
+    # Compute
+    requests.cpu: "4"
+    requests.memory: "4Gi"
+    limits.cpu: "8"
+    limits.memory: "8Gi"
+    
+    # Objects
+    pods: "20"
+    services: "10"
+    secrets: "10"
+    configmaps: "10"
+    persistentvolumeclaims: "5"
+    
+    # Storage
+    requests.storage: "10Gi"
+
+---
+# ===================================
+# Limit Range - Default container limits
+# ===================================
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: realtime-poll-limits
+  namespace: realtime-poll
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: "500m"
+        memory: "512Mi"
+      defaultRequest:
+        cpu: "100m"
+        memory: "128Mi"
+      min:
+        cpu: "50m"
+        memory: "64Mi"
+      max:
+        cpu: "2"
+        memory: "2Gi"
+    - type: PersistentVolumeClaim
+      min:
+        storage: "100Mi"
+      max:
+        storage: "5Gi"

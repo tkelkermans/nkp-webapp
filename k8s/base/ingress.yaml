@@ -1,0 +1,58 @@
+# ===================================
+# Ingress - Traefik with cert-manager
+# ===================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: realtime-poll-ingress
+  namespace: realtime-poll
+  labels:
+    app.kubernetes.io/name: realtime-poll
+  annotations:
+    # Traefik Ingress Controller
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    
+    # WebSocket support
+    traefik.ingress.kubernetes.io/service.sticky.cookie: "true"
+    traefik.ingress.kubernetes.io/service.sticky.cookie.name: "poll-sticky"
+    traefik.ingress.kubernetes.io/service.sticky.cookie.secure: "true"
+    traefik.ingress.kubernetes.io/service.sticky.cookie.samesite: "strict"
+    
+    # Cert-manager
+    cert-manager.io/cluster-issuer: "kommander-acme-issuer"
+spec:
+  ingressClassName: kommander-traefik
+  tls:
+    - hosts:
+        - tke-poll.ntnxlab.ch
+      secretName: realtime-poll-tls
+  rules:
+    # Frontend + Backend on same host (API under /api path)
+    - host: tke-poll.ntnxlab.ch
+      http:
+        paths:
+          # Backend API
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend-service
+                port:
+                  number: 3001
+          # Socket.io
+          - path: /socket.io
+            pathType: Prefix
+            backend:
+              service:
+                name: backend-service
+                port:
+                  number: 3001
+          # Frontend (catch-all)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-service
+                port:
+                  number: 3000

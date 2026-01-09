@@ -1,0 +1,234 @@
+# ===================================
+# GitHub Actions - Build and Push Images to Harbor
+# ===================================
+# Uses self-hosted runner for internal Harbor registry access
+#
+# Required Environment: ntnxlab
+#   Secrets:
+#     - HARBOR_USERNAME: Harbor robot account username
+#     - HARBOR_PASSWORD: Harbor robot account token
+#   Variables:
+#     - HARBOR_REGISTRY: e.g., tke-nkpmgmt.ntnxlab.ch:5000
+#     - HARBOR_PROJECT: e.g., nkp-webapp
+
+name: Build and Push Images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'backend/**'
+      - '.github/workflows/build-images.yaml'
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force_build:
+        description: 'Force build all images'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  # ===================================
+  # Detect changes to optimize builds
+  # ===================================
+  changes:
+    runs-on: self-hosted
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backend: ${{ steps.filter.outputs.backend }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'frontend/**'
+            backend:
+              - 'backend/**'
+
+  # ===================================
+  # Build and Push Backend
+  # ===================================
+  build-backend:
+    needs: changes
+    if: |
+      needs.changes.outputs.backend == 'true' || 
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.ref, 'refs/tags/v')
+    runs-on: self-hosted
+    environment: ntnxlab
+    permissions:
+      contents: read
+      packages: write
+    env:
+      HARBOR_REGISTRY: ${{ vars.HARBOR_REGISTRY }}
+      HARBOR_PROJECT: ${{ vars.HARBOR_PROJECT }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Harbor
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.HARBOR_REGISTRY }}
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ vars.HARBOR_REGISTRY }}/${{ vars.HARBOR_PROJECT }}/backend
+          tags: |
+            # Branch name
+            type=ref,event=branch
+            # PR number
+            type=ref,event=pr
+            # Semantic version from tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            # Git SHA (short)
+            type=sha,prefix=,format=short
+            # Latest on main branch
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ vars.HARBOR_REGISTRY }}/${{ vars.HARBOR_PROJECT }}/backend:buildcache
+          cache-to: type=registry,ref=${{ vars.HARBOR_REGISTRY }}/${{ vars.HARBOR_PROJECT }}/backend:buildcache,mode=max
+          platforms: linux/amd64
+
+      - name: Summary
+        run: |
+          echo "## 🐳 Backend Image Built" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** \`${{ vars.HARBOR_REGISTRY }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  # ===================================
+  # Build and Push Frontend
+  # ===================================
+  build-frontend:
+    needs: changes
+    if: |
+      needs.changes.outputs.frontend == 'true' || 
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.ref, 'refs/tags/v')
+    runs-on: self-hosted
+    environment: ntnxlab
+    permissions:
+      contents: read
+      packages: write
+    env:
+      HARBOR_REGISTRY: ${{ vars.HARBOR_REGISTRY }}
+      HARBOR_PROJECT: ${{ vars.HARBOR_PROJECT }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Harbor
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.HARBOR_REGISTRY }}
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ vars.HARBOR_REGISTRY }}/${{ vars.HARBOR_PROJECT }}/frontend
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ vars.HARBOR_REGISTRY }}/${{ vars.HARBOR_PROJECT }}/frontend:buildcache
+          cache-to: type=registry,ref=${{ vars.HARBOR_REGISTRY }}/${{ vars.HARBOR_PROJECT }}/frontend:buildcache,mode=max
+          platforms: linux/amd64
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://tke-poll.ntnxlab.ch
+            NEXT_PUBLIC_WS_URL=https://tke-poll.ntnxlab.ch
+
+      - name: Summary
+        run: |
+          echo "## 🎨 Frontend Image Built" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** \`${{ vars.HARBOR_REGISTRY }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  # ===================================
+  # Update Kubernetes manifests (optional)
+  # ===================================
+  update-manifests:
+    needs: [build-backend, build-frontend]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: self-hosted
+    environment: ntnxlab
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Update image tags in kustomization
+        run: |
+          cd k8s/overlays/prod
+          
+          # Update backend image tag
+          sed -i "s|newTag:.*# backend|newTag: ${{ steps.version.outputs.VERSION }} # backend|g" kustomization.yaml || true
+          
+          # Update frontend image tag  
+          sed -i "s|newTag:.*# frontend|newTag: ${{ steps.version.outputs.VERSION }} # frontend|g" kustomization.yaml || true
+
+      - name: Commit and push
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add k8s/overlays/prod/kustomization.yaml
+          git diff --staged --quiet || git commit -m "chore: update image tags to ${{ steps.version.outputs.VERSION }}"
+          git push

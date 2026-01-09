@@ -1,0 +1,120 @@
+# ===================================
+# Development Overlay
+# ===================================
+# Dev environment uses plain secrets (no ESO required)
+# This simplifies local/dev cluster deployments
+#
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: realtime-poll-dev
+
+# Inherit from base
+resources:
+  - ../../base
+
+# Common labels (using 'labels' instead of deprecated 'commonLabels')
+labels:
+  - pairs:
+      environment: development
+    includeSelectors: false
+
+# Image tags for dev (same registry as prod)
+images:
+  - name: realtime-poll-backend
+    newName: tke-nkpmgmt.ntnxlab.ch:5000/nkp-webapp/backend
+    newTag: latest
+  - name: realtime-poll-frontend
+    newName: tke-nkpmgmt.ntnxlab.ch:5000/nkp-webapp/frontend
+    newTag: latest
+
+# Patches for dev environment
+patches:
+  # Reduce replicas in dev
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: backend
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: frontend
+  
+  # Reduce HPA min replicas
+  - patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 3
+    target:
+      kind: HorizontalPodAutoscaler
+  
+  # Lower resource limits in dev
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "250m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "256Mi"
+    target:
+      kind: Deployment
+  
+  # Dev Ingress - hostname and TLS
+  - target:
+      kind: Ingress
+      name: realtime-poll-ingress
+    patch: |-
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: dev.tke-poll.ntnxlab.ch
+      - op: replace
+        path: /spec/tls/0/secretName
+        value: dev-realtime-poll-tls
+      - op: replace
+        path: /spec/rules/0/host
+        value: dev.tke-poll.ntnxlab.ch
+  
+  # Note: Frontend now uses relative URLs (compiled at build time as empty string)
+  # No URL patches needed - works on any domain
+  
+  # Dev backend - update CORS
+  - target:
+      kind: Deployment
+      name: backend
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/8/value
+        value: "https://dev.tke-poll.ntnxlab.ch"
+
+# ConfigMap for dev
+configMapGenerator:
+  - name: realtime-poll-config
+    literals:
+      - NODE_ENV=development
+      - BACKEND_PORT=3001
+      - FRONTEND_PORT=3000
+      - RATE_LIMIT_WINDOW_MS=60000
+      - RATE_LIMIT_MAX_REQUESTS=1000
+      - POLL_EXPIRY_HOURS=24
+      - MAX_OPTIONS_PER_POLL=10
+      - REDIS_HOST=redis-service
+      - REDIS_PORT=6379
+
+# Plain secrets for dev (no ESO required)
+secretGenerator:
+  - name: realtime-poll-secrets
+    literals:
+      - REDIS_PASSWORD=dev-redis-password-change-me
+      - SESSION_SECRET=dev-session-secret-32-characters
+
+generatorOptions:
+  disableNameSuffixHash: true

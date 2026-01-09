@@ -1,0 +1,130 @@
+# ===================================
+# Redis Deployment - Secure Configuration
+# ===================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: realtime-poll
+  labels:
+    app.kubernetes.io/name: realtime-poll
+    app.kubernetes.io/component: redis
+    app.kubernetes.io/version: "7.4"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # Redis single instance
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: realtime-poll
+      app.kubernetes.io/component: redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: realtime-poll
+        app.kubernetes.io/component: redis
+      annotations:
+        # Trigger rollout on secret change
+        checksum/secret: "{{ .Values.secretChecksum }}"
+    spec:
+      serviceAccountName: redis-sa
+      automountServiceAccountToken: false
+      
+      # Security context for pod
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      
+      containers:
+        - name: redis
+          image: redis:7.4-alpine
+          imagePullPolicy: IfNotPresent
+          
+          ports:
+            - containerPort: 6379
+              name: redis
+              protocol: TCP
+          
+          command:
+            - redis-server
+            - --appendonly
+            - "yes"
+            - --requirepass
+            - $(REDIS_PASSWORD)
+            - --maxmemory
+            - "256mb"
+            - --maxmemory-policy
+            - "allkeys-lru"
+          
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: realtime-poll-secrets
+                  key: REDIS_PASSWORD
+          
+          # Security context for container
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - redis-cli -a $REDIS_PASSWORD ping | grep PONG
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - redis-cli -a $REDIS_PASSWORD ping | grep PONG
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      
+      volumes:
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: redis-pvc
+        - name: tmp
+          emptyDir: {}
+      
+      # Scheduling
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/component: redis
+                topologyKey: kubernetes.io/hostname

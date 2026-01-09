@@ -1,0 +1,84 @@
+# ===================================
+# Production Overlay
+# ===================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: realtime-poll
+
+# Inherit from base
+resources:
+  - ../../base
+  # External Secrets for production (not in dev)
+  - ../../base/external-secrets.yaml
+
+# Common labels (using 'labels' instead of deprecated 'commonLabels')
+labels:
+  - pairs:
+      environment: production
+    includeSelectors: false
+
+# Image tags for production (updated by GitHub Actions on release)
+# Registry: Harbor (tke-nkpmgmt.ntnxlab.ch:5000)
+images:
+  - name: realtime-poll-backend
+    newName: tke-nkpmgmt.ntnxlab.ch:5000/nkp-webapp/backend
+    newTag: v1.0.0 # backend
+  - name: realtime-poll-frontend
+    newName: tke-nkpmgmt.ntnxlab.ch:5000/nkp-webapp/frontend
+    newTag: v1.0.0 # frontend
+
+# Patches for production
+patches:
+  # Production Ingress - hostname and TLS (already correct in base)
+  - target:
+      kind: Ingress
+      name: realtime-poll-ingress
+    patch: |-
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: tke-poll.ntnxlab.ch
+      - op: replace
+        path: /spec/tls/0/secretName
+        value: realtime-poll-tls
+      - op: replace
+        path: /spec/rules/0/host
+        value: tke-poll.ntnxlab.ch
+  
+  # Production CORS origin
+  - target:
+      kind: Deployment
+      name: backend
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/8/value
+        value: "https://tke-poll.ntnxlab.ch"
+  
+  # Higher resource limits for production
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "1"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "1Gi"
+    target:
+      kind: Deployment
+      name: backend
+
+# ConfigMap for production
+configMapGenerator:
+  - name: realtime-poll-config
+    literals:
+      - NODE_ENV=production
+      - BACKEND_PORT=3001
+      - FRONTEND_PORT=3000
+      - RATE_LIMIT_WINDOW_MS=60000
+      - RATE_LIMIT_MAX_REQUESTS=100
+      - POLL_EXPIRY_HOURS=24
+      - MAX_OPTIONS_PER_POLL=10
+      - REDIS_HOST=redis-service
+      - REDIS_PORT=6379
+
+generatorOptions:
+  disableNameSuffixHash: true

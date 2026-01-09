@@ -1,0 +1,36 @@
+# ===================================
+# Pod Disruption Budgets - High Availability
+# ===================================
+
+# Backend PDB
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: backend-pdb
+  namespace: realtime-poll
+  labels:
+    app.kubernetes.io/name: realtime-poll
+    app.kubernetes.io/component: backend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: realtime-poll
+      app.kubernetes.io/component: backend
+
+---
+# Frontend PDB
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend-pdb
+  namespace: realtime-poll
+  labels:
+    app.kubernetes.io/name: realtime-poll
+    app.kubernetes.io/component: frontend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: realtime-poll
+      app.kubernetes.io/component: frontend

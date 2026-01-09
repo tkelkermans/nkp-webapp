@@ -1,0 +1,84 @@
+# ===================================
+# Flux Image Automation (Optional)
+# ===================================
+# Automatically update image tags when new versions are pushed
+
+# Image Update Automation
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImageUpdateAutomation
+metadata:
+  name: nkp-webapp-images
+  namespace: flux-system
+spec:
+  interval: 30m
+  sourceRef:
+    kind: GitRepository
+    name: nkp-webapp
+  git:
+    checkout:
+      ref:
+        branch: main
+    commit:
+      author:
+        email: flux@nkp-webapp.local
+        name: Flux Image Automation
+      messageTemplate: |
+        chore: update container images
+        
+        {{range .Updated.Images}}
+        - {{.Repository}}: {{.PreviousTag}} -> {{.NewTag}}
+        {{end}}
+    push:
+      branch: main
+  update:
+    path: ./k8s/overlays/prod
+    strategy: Setters
+
+# Image Policies
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImagePolicy
+metadata:
+  name: backend
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: backend
+  policy:
+    semver:
+      range: ">=1.0.0"
+
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImagePolicy
+metadata:
+  name: frontend
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: frontend
+  policy:
+    semver:
+      range: ">=1.0.0"
+
+# Image Repositories
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImageRepository
+metadata:
+  name: backend
+  namespace: flux-system
+spec:
+  image: ghcr.io/tkelkermans/realtime-poll-backend
+  interval: 5m
+
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImageRepository
+metadata:
+  name: frontend
+  namespace: flux-system
+spec:
+  image: ghcr.io/tkelkermans/realtime-poll-frontend
+  interval: 5m

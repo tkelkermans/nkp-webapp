@@ -1,0 +1,66 @@
+# ===================================
+# Flux Kustomizations for Application Deployment
+# ===================================
+
+# Development Environment
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: nkp-webapp-dev
+  namespace: flux-system
+spec:
+  interval: 5m
+  path: ./k8s/overlays/dev
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: nkp-webapp
+  # Health checks
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: dev-backend
+      namespace: realtime-poll-dev
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: dev-frontend
+      namespace: realtime-poll-dev
+  # Timeout for health checks
+  timeout: 5m
+  # Retry on failure
+  retryInterval: 1m
+
+# Production Environment
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: nkp-webapp-prod
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./k8s/overlays/prod
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: nkp-webapp
+  # Health checks
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: backend
+      namespace: realtime-poll
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: frontend
+      namespace: realtime-poll
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: redis
+      namespace: realtime-poll
+  timeout: 10m
+  retryInterval: 2m
+
+# Note: External Secrets Operator should be installed separately on NKP
+# via the platform's add-on system, not through this GitOps repo
