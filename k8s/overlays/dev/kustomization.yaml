@@ -23,10 +23,10 @@ labels:
 images:
   - name: realtime-poll-backend
     newName: tke-nkpmgmt.ntnxlab.ch:5000/nkp-webapp/backend
-    newTag: f8ec591 # backend-dev
+    newTag: 1aa1446 # backend-dev
   - name: realtime-poll-frontend
     newName: tke-nkpmgmt.ntnxlab.ch:5000/nkp-webapp/frontend
-    newTag: f8ec591 # frontend-dev
+    newTag: 1aa1446 # frontend-dev
 
 # Patches for dev environment
 patches:
