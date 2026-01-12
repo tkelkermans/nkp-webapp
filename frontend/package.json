@@ -4,7 +4,7 @@
   "description": "Frontend Next.js pour l'application de sondage en temps réel",
   "private": true,
   "overrides": {
-    "glob": "^10.5.0"
+    "glob": "^11.1.0"
   },
   "scripts": {
     "dev": "next dev",
