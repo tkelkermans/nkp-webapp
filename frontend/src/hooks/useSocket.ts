@@ -4,8 +4,8 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import type { Poll, SocketStatus } from '@/types';
 
-// Socket.io: use current origin (empty string = same host via Ingress)
-// This works because Ingress routes /socket.io to backend
+// Socket.io: connect to same origin
+// Works in both dev (nginx proxy) and prod (K8s Ingress)
 
 interface UseSocketOptions {
   pollId?: string;
@@ -23,7 +23,7 @@ export function useSocket(options: UseSocketOptions = {}) {
     if (typeof window === 'undefined') return;
 
     setStatus('connecting');
-    // Empty path = connect to same origin (via Ingress which routes /socket.io to backend)
+    // Connect to same origin (nginx in dev, Ingress in prod routes /socket.io to backend)
     const socket = io({
       transports: ['websocket', 'polling'],
       reconnection: true,

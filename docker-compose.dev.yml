@@ -1,9 +1,25 @@
 # ===================================
 # Docker Compose - Développement avec hot-reload
 # ===================================
-# Usage: docker-compose -f docker-compose.dev.yml up
+# Usage: docker compose -f docker-compose.dev.yml up
+# Access: http://localhost (port 80 via nginx)
 
 services:
+  # Nginx - Reverse Proxy (routes /api and /socket.io to backend)
+  nginx:
+    image: nginx:alpine
+    container_name: poll-nginx-dev
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - poll-network-dev
+    restart: unless-stopped
+
   # Redis - Base de données
   redis:
     image: redis:7.4-alpine
@@ -50,15 +66,12 @@ services:
     image: node:22-alpine
     container_name: poll-frontend-dev
     working_dir: /app
-    ports:
-      - "3000:3000"
+    # Port exposed via nginx proxy (no direct access needed)
     volumes:
       - ./frontend:/app
       - frontend-node-modules:/app/node_modules
     environment:
       - NODE_ENV=development
-      # Backend URL for Next.js rewrites proxy (internal Docker network)
-      - BACKEND_URL=http://backend:3001
     command: sh -c "npm install && npm run dev"
     depends_on:
       - backend
