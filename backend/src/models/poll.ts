@@ -2,8 +2,7 @@ import { nanoid } from 'nanoid';
 import redis, { redisPub } from './redis.js';
 import type { Poll, PollOption, CreatePollInput } from '../types/index.js';
 import { config } from '../utils/config.js';
-// Note: sanitizeString removed - React handles XSS protection automatically
-// by escaping content during rendering. Double-escaping causes display issues.
+import { sanitizeString } from '../utils/validation.js';
 
 // Clés Redis
 const POLL_KEY_PREFIX = 'poll:';
@@ -37,13 +36,13 @@ export async function createPoll(input: CreatePollInput): Promise<Poll> {
   // Créer les options avec IDs uniques
   const options: PollOption[] = input.options.map((text) => ({
     id: generateOptionId(),
-    text: text.trim(),
+    text: sanitizeString(text.trim()),
     votes: 0,
   }));
 
   const poll: Poll = {
     id: pollId,
-    question: input.question.trim(),
+    question: sanitizeString(input.question.trim()),
     options,
     createdAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),
