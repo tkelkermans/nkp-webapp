@@ -4,7 +4,7 @@
   "description": "Backend API pour l'application de sondage en temps réel",
   "main": "dist/server.js",
   "overrides": {
-    "glob": "^10.5.0"
+    "glob": "^11.1.0"
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
