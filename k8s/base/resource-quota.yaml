@@ -5,7 +5,6 @@ apiVersion: v1
 kind: ResourceQuota
 metadata:
   name: realtime-poll-quota
-  namespace: realtime-poll
 spec:
   hard:
     # Compute
@@ -32,7 +31,6 @@ apiVersion: v1
 kind: LimitRange
 metadata:
   name: realtime-poll-limits
-  namespace: realtime-poll
 spec:
   limits:
     - type: Container

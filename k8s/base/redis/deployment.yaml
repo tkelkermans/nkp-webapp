@@ -5,7 +5,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: redis
-  namespace: realtime-poll
   labels:
     app.kubernetes.io/name: realtime-poll
     app.kubernetes.io/component: redis

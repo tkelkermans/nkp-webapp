@@ -1,6 +1,8 @@
 # ===================================
 # Flux Kustomizations for Application Deployment
 # ===================================
+# Note: No targetNamespace specified - NKP auto-manages namespaces
+# Health checks removed as namespace is managed by NKP
 
 # Development Environment
 ---
@@ -16,19 +18,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: nkp-webapp
-  # Health checks
-  healthChecks:
-    - apiVersion: apps/v1
-      kind: Deployment
-      name: dev-backend
-      namespace: realtime-poll-dev
-    - apiVersion: apps/v1
-      kind: Deployment
-      name: dev-frontend
-      namespace: realtime-poll-dev
-  # Timeout for health checks
   timeout: 5m
-  # Retry on failure
   retryInterval: 1m
 
 # Production Environment
@@ -45,20 +35,6 @@ spec:
   sourceRef:
     kind: GitRepository
     name: nkp-webapp
-  # Health checks
-  healthChecks:
-    - apiVersion: apps/v1
-      kind: Deployment
-      name: backend
-      namespace: realtime-poll
-    - apiVersion: apps/v1
-      kind: Deployment
-      name: frontend
-      namespace: realtime-poll
-    - apiVersion: apps/v1
-      kind: Deployment
-      name: redis
-      namespace: realtime-poll
   timeout: 10m
   retryInterval: 2m
 

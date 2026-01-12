@@ -7,7 +7,6 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: backend-pdb
-  namespace: realtime-poll
   labels:
     app.kubernetes.io/name: realtime-poll
     app.kubernetes.io/component: backend
@@ -24,7 +23,6 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: frontend-pdb
-  namespace: realtime-poll
   labels:
     app.kubernetes.io/name: realtime-poll
     app.kubernetes.io/component: frontend

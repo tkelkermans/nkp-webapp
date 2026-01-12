@@ -5,7 +5,6 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: frontend-hpa
-  namespace: realtime-poll
   labels:
     app.kubernetes.io/name: realtime-poll
     app.kubernetes.io/component: frontend
