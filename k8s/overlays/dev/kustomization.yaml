@@ -3,11 +3,10 @@
 # ===================================
 # Dev environment uses plain secrets (no ESO required)
 # This simplifies local/dev cluster deployments
+# No namespace specified - NKP auto-creates and manages namespaces
 #
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-
-namespace: realtime-poll-dev
 
 # Inherit from base
 resources:
