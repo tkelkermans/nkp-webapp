@@ -80,10 +80,6 @@ export default function PresentPage() {
     );
   }
 
-  const voteUrl = typeof window !== 'undefined' 
-    ? `${window.location.origin}/poll/${pollId}` 
-    : '';
-
   return (
     <div className="min-h-screen bg-charcoal text-white p-8">
       {/* Header */}
@@ -99,12 +95,9 @@ export default function PresentPage() {
         </div>
 
         {/* QR Code */}
-        {showQR && voteUrl && (
+        {showQR && (
           <div className="bg-white p-4 rounded-xl shadow-2xl">
-            <QRCode url={voteUrl} size={200} />
-            <p className="text-center text-charcoal text-sm mt-2 font-medium">
-              Scannez pour voter
-            </p>
+            <QRCode pollId={pollId} size={200} />
           </div>
         )}
       </div>
