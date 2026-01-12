@@ -10,8 +10,8 @@ metadata:
   labels:
     app.kubernetes.io/name: realtime-poll
     app.kubernetes.io/component: backend
-    # Labels for NKP/Kommander Prometheus discovery
-    release: kube-prometheus-stack
+    # Required label for NKP/Kommander Prometheus discovery
+    prometheus.kommander.d2iq.io/select: "true"
 spec:
   selector:
     matchLabels:
