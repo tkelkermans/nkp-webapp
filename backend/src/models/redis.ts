@@ -1,5 +1,6 @@
 import Redis from 'ioredis';
 import { config } from '../utils/config.js';
+import logger from '../utils/logger.js';
 
 /**
  * Client Redis principal pour les opérations de données
@@ -25,15 +26,15 @@ export const redisSub = new Redis(config.redisUrl, {
 
 // Gestionnaires d'événements
 redis.on('connect', () => {
-  console.log('✅ Redis connected');
+  logger.info('Redis connected');
 });
 
 redis.on('error', (err) => {
-  console.error('❌ Redis error:', err.message);
+  logger.error({ error: err.message }, 'Redis error');
 });
 
 redis.on('reconnecting', () => {
-  console.log('🔄 Redis reconnecting...');
+  logger.warn('Redis reconnecting');
 });
 
 /**
@@ -47,9 +48,9 @@ export async function initializeRedis(): Promise<void> {
     
     // Test de la connexion
     await redis.ping();
-    console.log('✅ Redis connections established');
+    logger.info('Redis connections established');
   } catch (error) {
-    console.error('❌ Failed to connect to Redis:', error);
+    logger.error({ error }, 'Failed to connect to Redis');
     throw error;
   }
 }
@@ -61,7 +62,7 @@ export async function closeRedis(): Promise<void> {
   await redis.quit();
   await redisPub.quit();
   await redisSub.quit();
-  console.log('✅ Redis connections closed');
+  logger.info('Redis connections closed');
 }
 
 export default redis;

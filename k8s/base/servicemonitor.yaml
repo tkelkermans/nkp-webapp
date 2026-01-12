@@ -1,0 +1,27 @@
+# ===================================
+# ServiceMonitor - Prometheus Integration
+# ===================================
+# Allows Prometheus to scrape metrics from the backend service
+# Requires Prometheus Operator (included in NKP/Kommander)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: realtime-poll-backend
+  namespace: realtime-poll
+  labels:
+    app.kubernetes.io/name: realtime-poll
+    app.kubernetes.io/component: backend
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: backend
+  namespaceSelector:
+    matchNames:
+      - realtime-poll
+      - realtime-poll-dev
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      scheme: http

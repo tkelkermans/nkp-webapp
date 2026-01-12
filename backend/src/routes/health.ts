@@ -14,7 +14,27 @@ interface HealthStatus {
 }
 
 /**
- * GET /api/health - Vérification de l'état du service
+ * @openapi
+ * /health:
+ *   get:
+ *     tags:
+ *       - Health
+ *     summary: Vérification de l'état du service
+ *     description: Retourne l'état de santé de l'API et de ses dépendances
+ *     responses:
+ *       200:
+ *         description: Service en bonne santé
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/HealthResponse'
+ *       503:
+ *         description: Service indisponible
  */
 router.get('/', async (_req: Request, res: Response<ApiResponse<HealthStatus>>) => {
   try {
@@ -53,7 +73,18 @@ router.get('/', async (_req: Request, res: Response<ApiResponse<HealthStatus>>) 
 });
 
 /**
- * GET /api/health/ready - Readiness probe pour Kubernetes
+ * @openapi
+ * /health/ready:
+ *   get:
+ *     tags:
+ *       - Health
+ *     summary: Readiness probe pour Kubernetes
+ *     description: Vérifie si le service est prêt à recevoir du trafic
+ *     responses:
+ *       200:
+ *         description: Service prêt
+ *       503:
+ *         description: Service pas prêt
  */
 router.get('/ready', async (_req: Request, res: Response) => {
   try {
@@ -65,7 +96,16 @@ router.get('/ready', async (_req: Request, res: Response) => {
 });
 
 /**
- * GET /api/health/live - Liveness probe pour Kubernetes
+ * @openapi
+ * /health/live:
+ *   get:
+ *     tags:
+ *       - Health
+ *     summary: Liveness probe pour Kubernetes
+ *     description: Vérifie si le service est vivant
+ *     responses:
+ *       200:
+ *         description: Service vivant
  */
 router.get('/live', (_req: Request, res: Response) => {
   res.status(200).send('OK');

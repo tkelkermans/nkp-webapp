@@ -33,4 +33,7 @@ resources:
   # Networking
   - ingress.yaml
   
+  # Monitoring
+  - servicemonitor.yaml
+  
   # Note: external-secrets.yaml is included only in prod overlay

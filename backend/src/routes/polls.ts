@@ -19,7 +19,27 @@ function generateVoterId(req: Request): string {
 }
 
 /**
- * GET /api/polls - Liste des sondages actifs
+ * @openapi
+ * /polls:
+ *   get:
+ *     tags:
+ *       - Polls
+ *     summary: Liste des sondages actifs
+ *     description: Retourne tous les sondages non expirés
+ *     responses:
+ *       200:
+ *         description: Liste des sondages
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Poll'
  */
 router.get(
   '/',
@@ -34,7 +54,35 @@ router.get(
 );
 
 /**
- * POST /api/polls - Créer un nouveau sondage
+ * @openapi
+ * /polls:
+ *   post:
+ *     tags:
+ *       - Polls
+ *     summary: Créer un nouveau sondage
+ *     description: Crée un sondage avec une question et des options de réponse
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreatePollInput'
+ *     responses:
+ *       201:
+ *         description: Sondage créé avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/Poll'
+ *       400:
+ *         description: Données invalides
+ *       429:
+ *         description: Trop de requêtes (rate limiting)
  */
 router.post(
   '/',
@@ -63,7 +111,34 @@ router.post(
 );
 
 /**
- * GET /api/polls/:id - Récupérer un sondage
+ * @openapi
+ * /polls/{id}:
+ *   get:
+ *     tags:
+ *       - Polls
+ *     summary: Récupérer un sondage
+ *     description: Retourne les détails d'un sondage spécifique
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du sondage
+ *     responses:
+ *       200:
+ *         description: Détails du sondage
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/Poll'
+ *       404:
+ *         description: Sondage non trouvé
  */
 router.get(
   '/:id',
@@ -97,7 +172,44 @@ router.get(
 );
 
 /**
- * POST /api/polls/:id/vote - Voter sur un sondage
+ * @openapi
+ * /polls/{id}/vote:
+ *   post:
+ *     tags:
+ *       - Polls
+ *     summary: Voter sur un sondage
+ *     description: Enregistre un vote pour une option. Un utilisateur ne peut voter qu'une fois par sondage.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du sondage
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/VoteInput'
+ *     responses:
+ *       200:
+ *         description: Vote enregistré
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/Poll'
+ *       404:
+ *         description: Sondage non trouvé
+ *       409:
+ *         description: Déjà voté sur ce sondage
+ *       429:
+ *         description: Trop de requêtes (rate limiting)
  */
 router.post(
   '/:id/vote',
@@ -155,7 +267,25 @@ router.post(
 );
 
 /**
- * DELETE /api/polls/:id - Supprimer un sondage
+ * @openapi
+ * /polls/{id}:
+ *   delete:
+ *     tags:
+ *       - Polls
+ *     summary: Supprimer un sondage
+ *     description: Supprime définitivement un sondage et ses votes
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du sondage
+ *     responses:
+ *       200:
+ *         description: Sondage supprimé
+ *       404:
+ *         description: Sondage non trouvé
  */
 router.delete(
   '/:id',
@@ -189,7 +319,25 @@ router.delete(
 );
 
 /**
- * POST /api/polls/:id/close - Fermer un sondage
+ * @openapi
+ * /polls/{id}/close:
+ *   post:
+ *     tags:
+ *       - Polls
+ *     summary: Fermer un sondage
+ *     description: Ferme un sondage pour empêcher de nouveaux votes
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du sondage
+ *     responses:
+ *       200:
+ *         description: Sondage fermé
+ *       404:
+ *         description: Sondage non trouvé
  */
 router.post(
   '/:id/close',
@@ -219,6 +367,102 @@ router.post(
       success: true,
       message: 'Sondage fermé',
     });
+  })
+);
+
+/**
+ * @openapi
+ * /polls/{id}/export:
+ *   get:
+ *     tags:
+ *       - Polls
+ *     summary: Exporter les résultats d'un sondage
+ *     description: Exporte les résultats au format CSV
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du sondage
+ *       - in: query
+ *         name: format
+ *         schema:
+ *           type: string
+ *           enum: [csv, json]
+ *           default: csv
+ *         description: Format d'export
+ *     responses:
+ *       200:
+ *         description: Résultats exportés
+ *         content:
+ *           text/csv:
+ *             schema:
+ *               type: string
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Poll'
+ *       404:
+ *         description: Sondage non trouvé
+ */
+router.get(
+  '/:id/export',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const format = (req.query['format'] as string) || 'csv';
+
+    const idValidation = validatePollId(id);
+    if (!idValidation.success) {
+      res.status(400).json({
+        success: false,
+        error: 'ID invalide',
+      });
+      return;
+    }
+
+    const poll = await PollModel.getPollById(id!);
+
+    if (!poll) {
+      res.status(404).json({
+        success: false,
+        error: 'Sondage non trouvé',
+      });
+      return;
+    }
+
+    if (format === 'json') {
+      res.json({
+        success: true,
+        data: poll,
+      });
+      return;
+    }
+
+    // Format CSV
+    const csvRows = [
+      ['Question', poll.question],
+      ['Créé le', poll.createdAt],
+      ['Expire le', poll.expiresAt || 'N/A'],
+      ['Total votes', poll.totalVotes.toString()],
+      ['Statut', poll.isActive ? 'Actif' : 'Fermé'],
+      [],
+      ['Option', 'Votes', 'Pourcentage'],
+    ];
+
+    for (const option of poll.options) {
+      const percentage = poll.totalVotes > 0 
+        ? ((option.votes / poll.totalVotes) * 100).toFixed(1) 
+        : '0';
+      csvRows.push([option.text, option.votes.toString(), `${percentage}%`]);
+    }
+
+    const csvContent = csvRows
+      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="poll-${id}-results.csv"`);
+    res.send('\uFEFF' + csvContent); // BOM for Excel UTF-8 compatibility
   })
 );
 

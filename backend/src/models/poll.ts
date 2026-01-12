@@ -2,6 +2,7 @@ import { nanoid } from 'nanoid';
 import redis, { redisPub } from './redis.js';
 import type { Poll, PollOption, CreatePollInput } from '../types/index.js';
 import { config } from '../utils/config.js';
+import logger from '../utils/logger.js';
 // Note: sanitizeString removed - React handles XSS protection automatically
 
 // Clés Redis
@@ -79,7 +80,7 @@ export async function createPoll(input: CreatePollInput): Promise<Poll> {
 
   await pipeline.exec();
 
-  console.log(`✅ Poll created: ${pollId}`);
+  logger.info({ pollId, question: poll.question, optionsCount: options.length }, 'Poll created');
   return poll;
 }
 
@@ -201,7 +202,7 @@ export async function vote(
       `poll:${pollId}:updates`,
       JSON.stringify(updatedPoll)
     );
-    console.log(`✅ Vote recorded: poll=${pollId}, option=${optionId}`);
+    logger.info({ pollId, optionId, totalVotes: updatedPoll.totalVotes }, 'Vote recorded');
   }
 
   return updatedPoll;
@@ -222,7 +223,7 @@ export async function closePoll(pollId: string): Promise<boolean> {
   // Publier la fermeture
   await redisPub.publish(`poll:${pollId}:closed`, pollId);
 
-  console.log(`✅ Poll closed: ${pollId}`);
+  logger.info({ pollId }, 'Poll closed');
   return true;
 }
 
@@ -245,7 +246,7 @@ export async function deletePoll(pollId: string): Promise<boolean> {
   if (deleted) {
     // Publier la fermeture
     await redisPub.publish(`poll:${pollId}:closed`, pollId);
-    console.log(`✅ Poll deleted: ${pollId}`);
+    logger.info({ pollId }, 'Poll deleted');
   }
 
   return deleted;
@@ -269,6 +270,6 @@ export async function cleanupExpiredPolls(): Promise<number> {
     await deletePoll(pollId);
   }
 
-  console.log(`🧹 Cleaned up ${expiredIds.length} expired polls`);
+  logger.info({ count: expiredIds.length }, 'Cleaned up expired polls');
   return expiredIds.length;
 }

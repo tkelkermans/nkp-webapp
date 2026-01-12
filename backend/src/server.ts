@@ -9,9 +9,13 @@ import { cleanupExpiredPolls } from './models/poll.js';
 import { initializeSocket } from './socket/index.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { apiLimiter } from './middleware/rateLimit.js';
+import { metricsMiddleware } from './middleware/metrics.js';
+import { specs, swaggerUi } from './swagger.js';
+import logger from './utils/logger.js';
 
 import pollsRouter from './routes/polls.js';
 import healthRouter from './routes/health.js';
+import metricsRouter from './routes/metrics.js';
 
 /**
  * Application Express principale
@@ -28,6 +32,7 @@ app.use(
         connectSrc: ["'self'", 'ws:', 'wss:'],
         scriptSrc: ["'self'", "'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'https://validator.swagger.io'],
       },
     },
     crossOriginEmbedderPolicy: false,
@@ -51,12 +56,30 @@ app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 // Trust proxy pour les headers X-Forwarded-*
 app.set('trust proxy', 1);
 
+// Métriques Prometheus (avant rate limiting pour ne pas être affecté)
+app.use(metricsMiddleware);
+
 // Rate limiting global
 app.use('/api', apiLimiter);
 
 // Routes API
 app.use('/api/health', healthRouter);
 app.use('/api/polls', pollsRouter);
+
+// Swagger UI - Documentation API
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(specs, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'RealTime Poll API Documentation',
+}));
+
+// OpenAPI JSON spec
+app.get('/api/docs.json', (_req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(specs);
+});
+
+// Prometheus metrics (outside /api path, no rate limiting)
+app.use('/metrics', metricsRouter);
 
 // Route racine
 app.get('/', (_req, res) => {
@@ -101,16 +124,16 @@ async function startServer(): Promise<void> {
 
     // Démarrer le serveur HTTP
     httpServer.listen(config.port, () => {
-      console.log('');
-      console.log('🗳️  RealTime Poll API Server');
-      console.log('================================');
-      console.log(`🚀 Server running on port ${config.port}`);
-      console.log(`📡 Environment: ${config.nodeEnv}`);
-      console.log(`🔗 Health check: http://localhost:${config.port}/api/health`);
-      console.log('');
+      logger.info({
+        port: config.port,
+        environment: config.nodeEnv,
+        healthCheck: `http://localhost:${config.port}/api/health`,
+        apiDocs: `http://localhost:${config.port}/api/docs`,
+        metrics: `http://localhost:${config.port}/metrics`,
+      }, 'RealTime Poll API Server started');
     });
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    logger.error({ error }, 'Failed to start server');
     process.exit(1);
   }
 }
@@ -119,17 +142,17 @@ async function startServer(): Promise<void> {
  * Gestion de l'arrêt propre
  */
 async function shutdown(signal: string): Promise<void> {
-  console.log(`\n${signal} received. Shutting down gracefully...`);
+  logger.info({ signal }, 'Shutting down gracefully');
 
   // Fermer le serveur HTTP
   httpServer.close(() => {
-    console.log('✅ HTTP server closed');
+    logger.info('HTTP server closed');
   });
 
   // Fermer les connexions Redis
   await closeRedis();
 
-  console.log('✅ Shutdown complete');
+  logger.info('Shutdown complete');
   process.exit(0);
 }
 
@@ -139,12 +162,12 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 
 // Gestion des erreurs non capturées
 process.on('uncaughtException', (error) => {
-  console.error('❌ Uncaught Exception:', error);
+  logger.fatal({ error }, 'Uncaught Exception');
   process.exit(1);
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+process.on('unhandledRejection', (reason) => {
+  logger.error({ reason }, 'Unhandled Rejection');
 });
 
 // Démarrer le serveur

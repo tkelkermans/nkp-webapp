@@ -2,6 +2,8 @@ import { Server as SocketServer } from 'socket.io';
 import type { Server as HttpServer } from 'http';
 import { redisSub } from '../models/redis.js';
 import { config } from '../utils/config.js';
+import logger from '../utils/logger.js';
+import { websocketConnectionsActive } from '../middleware/metrics.js';
 import type {
   ServerToClientEvents,
   ClientToServerEvents,
@@ -33,7 +35,8 @@ export function initializeSocket(httpServer: HttpServer): SocketServer<
 
   // Gestion des connexions clients
   io.on('connection', (socket) => {
-    console.log(`🔌 Client connected: ${socket.id}`);
+    websocketConnectionsActive.inc();
+    logger.debug({ socketId: socket.id }, 'Client connected');
 
     // Rejoindre une room de sondage
     socket.on('join-poll', (pollId: string) => {
@@ -52,30 +55,31 @@ export function initializeSocket(httpServer: HttpServer): SocketServer<
       }
 
       socket.join(`poll:${pollId}`);
-      console.log(`📊 Client ${socket.id} joined poll: ${pollId}`);
+      logger.debug({ socketId: socket.id, pollId }, 'Client joined poll');
     });
 
     // Quitter une room de sondage
     socket.on('leave-poll', (pollId: string) => {
       socket.leave(`poll:${pollId}`);
-      console.log(`📊 Client ${socket.id} left poll: ${pollId}`);
+      logger.debug({ socketId: socket.id, pollId }, 'Client left poll');
     });
 
     // Déconnexion
     socket.on('disconnect', (reason) => {
-      console.log(`🔌 Client disconnected: ${socket.id} (${reason})`);
+      websocketConnectionsActive.dec();
+      logger.debug({ socketId: socket.id, reason }, 'Client disconnected');
     });
 
     // Erreur
     socket.on('error', (error) => {
-      console.error(`❌ Socket error for ${socket.id}:`, error);
+      logger.error({ socketId: socket.id, error }, 'Socket error');
     });
   });
 
   // Souscrire aux mises à jour Redis
   setupRedisSubscription(io);
 
-  console.log('✅ Socket.io initialized');
+  logger.info('Socket.io initialized');
   return io;
 }
 
@@ -100,18 +104,18 @@ function setupRedisSubscription(
         // Diffuser la mise à jour à tous les clients dans la room
         const poll: Poll = JSON.parse(message);
         io.to(`poll:${pollId}`).emit('vote-update', poll);
-        console.log(`📢 Broadcasted update for poll: ${pollId}`);
+        logger.debug({ pollId, eventType }, 'Broadcasted poll update');
       } else if (eventType === 'closed') {
         // Notifier la fermeture du sondage
         io.to(`poll:${pollId}`).emit('poll-closed', pollId!);
-        console.log(`📢 Broadcasted close for poll: ${pollId}`);
+        logger.debug({ pollId, eventType }, 'Broadcasted poll close');
       }
     } catch (error) {
-      console.error('❌ Error processing Redis message:', error);
+      logger.error({ error }, 'Error processing Redis message');
     }
   });
 
-  console.log('✅ Redis pub/sub subscription active');
+  logger.info('Redis pub/sub subscription active');
 }
 
 export default initializeSocket;
