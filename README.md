@@ -15,6 +15,10 @@ Application de sondage en temps réel conçue pour les démonstrations Nutanix K
 - 📊 **Graphiques** - Visualisation des résultats (barres et camembert)
 - 🎨 **Design Nutanix** - Couleurs et branding officiels
 - ☸️ **Cloud Native** - Kubernetes, GitOps, sécurité Zero Trust
+- 🖥️ **Mode présentateur** - Vue plein écran pour projections
+- 📄 **Export CSV** - Télécharger les résultats
+- 📚 **API Docs** - Documentation Swagger/OpenAPI
+- 📈 **Métriques** - Prometheus avec ServiceMonitor
 
 ## 🌐 URLs
 
@@ -202,6 +206,7 @@ kubectl get externalsecrets -n realtime-poll
 ### Application Security
 
 - ✅ **Rate Limiting**: Protection contre les abus
+- ✅ **Anti-double vote**: Fingerprint (IP + User-Agent hash)
 - ✅ **Input Validation**: Zod schemas
 - ✅ **CORS**: Origines autorisées configurables
 - ✅ **Security Headers**: X-Frame-Options, X-Content-Type-Options
@@ -212,10 +217,27 @@ kubectl get externalsecrets -n realtime-poll
 
 Le workflow `.github/workflows/build-images.yaml` :
 
-1. **Déclenché par** : Push sur `main` (frontend/** ou backend/**)
-2. **Build** : Images Docker multi-stage
-3. **Push** : Registry Harbor privé
-4. **Cache** : BuildKit cache layers
+| Événement | Action |
+|-----------|--------|
+| Push sur `main` | Build → Tag SHA → Update dev overlay → Flux déploie |
+| Tag `v*.*.*` | Build → Tag version → Update prod overlay → Flux déploie |
+
+### Déploiement automatique
+
+```bash
+# Développement (automatique sur push)
+git push origin main
+# → Images taguées avec SHA court (ex: abc1234)
+# → k8s/overlays/dev mis à jour
+# → Flux déploie sur dev.tke-poll.ntnxlab.ch
+
+# Production (sur tag)
+git tag v1.2.0
+git push --tags
+# → Images taguées avec version (ex: v1.2.0)
+# → k8s/overlays/prod mis à jour
+# → Flux déploie sur tke-poll.ntnxlab.ch
+```
 
 ### Configuration requise
 
@@ -229,6 +251,29 @@ Dans GitHub Settings → Environments → `ntnxlab` :
 | Variable | `HARBOR_PROJECT` | `nkp-webapp` |
 
 ## 📊 Observabilité
+
+### Prometheus Metrics
+
+Le backend expose des métriques Prometheus sur `/metrics` :
+
+```bash
+# Métriques disponibles
+curl http://localhost:3001/metrics
+
+# Métriques clés
+http_requests_total          # Total requêtes HTTP
+http_request_duration_seconds # Latence des requêtes
+poll_votes_total             # Nombre total de votes
+websocket_connections_active # Connexions WebSocket actives
+```
+
+Un `ServiceMonitor` est inclus pour l'intégration avec le Prometheus de NKP.
+
+### Structured Logging
+
+Les logs sont au format JSON (pino) pour une meilleure intégration avec les outils d'observabilité.
+
+### Commandes utiles
 
 ```bash
 # Logs Flux CD
@@ -247,25 +292,47 @@ kubectl describe pods -n realtime-poll
 ## 🧪 Tests
 
 ```bash
-# Backend unit tests
+# Backend unit tests (Jest)
 cd backend && npm test
 
+# Frontend unit tests (Vitest)
+cd frontend && npm test
+
+# Frontend tests en mode watch
+cd frontend && npm run test:watch
+
 # Type checking
-cd frontend && npm run type-check
-cd backend && npm run type-check
+cd frontend && npm run lint
+cd backend && npm run build
 ```
 
 ## 📝 API Reference
+
+### Documentation Swagger
+
+La documentation interactive est disponible sur `/api/docs` :
+
+| Environnement | URL |
+|---------------|-----|
+| Local | http://localhost:3001/api/docs |
+| Dev | https://dev.tke-poll.ntnxlab.ch/api/docs |
+| Prod | https://tke-poll.ntnxlab.ch/api/docs |
 
 ### REST Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/health` | Health check |
+| GET | `/api/health/ready` | Readiness probe (K8s) |
+| GET | `/api/health/live` | Liveness probe (K8s) |
 | GET | `/api/polls` | Liste des sondages actifs |
 | GET | `/api/polls/:id` | Détails d'un sondage |
 | POST | `/api/polls` | Créer un sondage |
 | POST | `/api/polls/:id/vote` | Voter |
+| POST | `/api/polls/:id/close` | Fermer un sondage |
+| DELETE | `/api/polls/:id` | Supprimer un sondage |
+| GET | `/api/polls/:id/export` | Exporter résultats (CSV/JSON) |
+| GET | `/metrics` | Métriques Prometheus |
 
 ### WebSocket Events
 
@@ -275,6 +342,13 @@ cd backend && npm run type-check
 | `leave-poll` | Client → Server | Quitter un sondage |
 | `vote-update` | Server → Client | Mise à jour des votes |
 | `poll-closed` | Server → Client | Sondage fermé |
+
+### Mode Présentateur
+
+Accédez à `/poll/:id/present` pour afficher les résultats en mode plein écran :
+
+- **Q** : Afficher/masquer le QR code
+- **F11** : Mode plein écran
 
 ## 🤝 Stack Technique
 
