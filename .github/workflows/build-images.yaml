@@ -29,7 +29,7 @@ on:
       force_build:
         description: 'Force build all images'
         required: false
-        default: 'false'
+        default: false
         type: boolean
 
 jobs:
@@ -210,11 +210,13 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Checkout
+      # Always checkout main branch so we can push changes (tags are read-only)
+      - name: Checkout main branch
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          ref: ${{ github.ref }}
+          ref: main
+          fetch-depth: 0
 
       - name: Get short SHA
         id: sha
@@ -247,13 +249,17 @@ jobs:
         run: |
           cd k8s/overlays/prod
           
-          # Update backend image tag with version
-          sed -i "s|newTag:.*# backend|newTag: ${{ steps.version.outputs.VERSION }} # backend|g" kustomization.yaml
-          echo "✅ Updated backend tag to ${{ steps.version.outputs.VERSION }}"
+          # Update backend image tag with version (only if build succeeded)
+          if [ "${{ needs.build-backend.result }}" == "success" ]; then
+            sed -i "s|newTag:.*# backend|newTag: ${{ steps.version.outputs.VERSION }} # backend|g" kustomization.yaml
+            echo "✅ Updated backend tag to ${{ steps.version.outputs.VERSION }}"
+          fi
           
-          # Update frontend image tag with version
-          sed -i "s|newTag:.*# frontend|newTag: ${{ steps.version.outputs.VERSION }} # frontend|g" kustomization.yaml
-          echo "✅ Updated frontend tag to ${{ steps.version.outputs.VERSION }}"
+          # Update frontend image tag with version (only if build succeeded)
+          if [ "${{ needs.build-frontend.result }}" == "success" ]; then
+            sed -i "s|newTag:.*# frontend|newTag: ${{ steps.version.outputs.VERSION }} # frontend|g" kustomization.yaml
+            echo "✅ Updated frontend tag to ${{ steps.version.outputs.VERSION }}"
+          fi
 
       - name: Commit and push
         run: |
@@ -272,7 +278,7 @@ jobs:
           
           # Commit if there are changes
           git diff --staged --quiet || git commit -m "$MSG"
-          git push
+          git push origin main
 
       - name: Summary
         run: |

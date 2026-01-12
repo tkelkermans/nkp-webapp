@@ -18,6 +18,16 @@ export function useSocket(options: UseSocketOptions = {}) {
   const [status, setStatus] = useState<SocketStatus>('disconnected');
   const socketRef = useRef<Socket | null>(null);
   const currentPollRef = useRef<string | null>(null);
+  
+  // Use refs to avoid stale closures in socket event handlers
+  const onVoteUpdateRef = useRef(onVoteUpdate);
+  const onPollClosedRef = useRef(onPollClosed);
+  
+  // Keep refs updated
+  useEffect(() => {
+    onVoteUpdateRef.current = onVoteUpdate;
+    onPollClosedRef.current = onPollClosed;
+  }, [onVoteUpdate, onPollClosed]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -40,14 +50,14 @@ export function useSocket(options: UseSocketOptions = {}) {
 
     socket.on('disconnect', () => setStatus('disconnected'));
     socket.on('connect_error', () => setStatus('error'));
-    socket.on('vote-update', (poll: Poll) => onVoteUpdate?.(poll));
-    socket.on('poll-closed', (closedPollId: string) => onPollClosed?.(closedPollId));
+    socket.on('vote-update', (poll: Poll) => onVoteUpdateRef.current?.(poll));
+    socket.on('poll-closed', (closedPollId: string) => onPollClosedRef.current?.(closedPollId));
 
     return () => {
       if (currentPollRef.current) socket.emit('leave-poll', currentPollRef.current);
       socket.disconnect();
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!pollId || !socketRef.current) return;
