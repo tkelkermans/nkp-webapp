@@ -20,6 +20,12 @@ describe('LoadingSpinner', () => {
     expect(spinner).toBeInTheDocument();
   });
 
+  it('renders with medium size', () => {
+    const { container } = render(<LoadingSpinner size="md" />);
+    const spinner = container.querySelector('.w-10');
+    expect(spinner).toBeInTheDocument();
+  });
+
   it('renders with large size', () => {
     const { container } = render(<LoadingSpinner size="lg" />);
     const spinner = container.querySelector('.w-16');

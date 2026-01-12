@@ -2,22 +2,24 @@
 
 import { cn } from '@/lib/utils';
 
-interface LoadingSpinnerProps {
+export interface LoadingSpinnerProps {
   size?: 'sm' | 'md' | 'lg';
   className?: string;
+  text?: string;
 }
 
-export function LoadingSpinner({ size = 'md', className }: LoadingSpinnerProps) {
-  const sizeClasses = { sm: 'w-5 h-5 border-2', md: 'w-8 h-8 border-3', lg: 'w-12 h-12 border-4' };
+export function LoadingSpinner({ size = 'md', className, text }: LoadingSpinnerProps) {
+  const sizeClasses = { sm: 'w-6 h-6 border-2', md: 'w-10 h-10 border-3', lg: 'w-16 h-16 border-4' };
 
   return (
-    <div className={cn('flex items-center justify-center', className)}>
+    <div className={cn('flex flex-col items-center justify-center gap-4', className)}>
       <div
         className={cn('rounded-full border-charcoal-200 border-t-primary-500 animate-spin', sizeClasses[size])}
         role="status"
       >
-        <span className="sr-only">Chargement...</span>
+        <span className="sr-only">{text || 'Chargement...'}</span>
       </div>
+      {text && <p className="text-charcoal-600 text-sm">{text}</p>}
     </div>
   );
 }
