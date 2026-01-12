@@ -182,9 +182,6 @@ jobs:
           cache-from: type=registry,ref=${{ vars.HARBOR_REGISTRY }}/${{ vars.HARBOR_PROJECT }}/frontend:buildcache
           cache-to: type=registry,ref=${{ vars.HARBOR_REGISTRY }}/${{ vars.HARBOR_PROJECT }}/frontend:buildcache,mode=max
           platforms: linux/amd64
-          build-args: |
-            NEXT_PUBLIC_API_URL=https://tke-poll.ntnxlab.ch
-            NEXT_PUBLIC_WS_URL=https://tke-poll.ntnxlab.ch
 
       - name: Summary
         run: |
@@ -198,11 +195,16 @@ jobs:
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
   # ===================================
-  # Update Kubernetes manifests (optional)
+  # Update Kubernetes manifests for GitOps
   # ===================================
+  # On push to main: update dev overlay with SHA tag
+  # On tag v*: update prod overlay with semver tag
   update-manifests:
     needs: [build-backend, build-frontend]
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: |
+      always() && 
+      (needs.build-backend.result == 'success' || needs.build-frontend.result == 'success') &&
+      github.event_name != 'pull_request'
     runs-on: self-hosted
     environment: ntnxlab
     steps:
@@ -210,25 +212,76 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.ref }}
 
-      - name: Extract version from tag
+      - name: Get short SHA
+        id: sha
+        run: echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Extract version from tag (if tag push)
         id: version
+        if: startsWith(github.ref, 'refs/tags/v')
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      - name: Update image tags in kustomization
+      - name: Update dev overlay (on push to main)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          cd k8s/overlays/dev
+          
+          # Update backend image tag with SHA
+          if [ "${{ needs.build-backend.result }}" == "success" ]; then
+            sed -i "s|newTag:.*# backend-dev|newTag: ${{ steps.sha.outputs.SHORT_SHA }} # backend-dev|g" kustomization.yaml
+            echo "✅ Updated backend tag to ${{ steps.sha.outputs.SHORT_SHA }}"
+          fi
+          
+          # Update frontend image tag with SHA
+          if [ "${{ needs.build-frontend.result }}" == "success" ]; then
+            sed -i "s|newTag:.*# frontend-dev|newTag: ${{ steps.sha.outputs.SHORT_SHA }} # frontend-dev|g" kustomization.yaml
+            echo "✅ Updated frontend tag to ${{ steps.sha.outputs.SHORT_SHA }}"
+          fi
+
+      - name: Update prod overlay (on tag push)
+        if: startsWith(github.ref, 'refs/tags/v')
         run: |
           cd k8s/overlays/prod
           
-          # Update backend image tag
-          sed -i "s|newTag:.*# backend|newTag: ${{ steps.version.outputs.VERSION }} # backend|g" kustomization.yaml || true
+          # Update backend image tag with version
+          sed -i "s|newTag:.*# backend|newTag: ${{ steps.version.outputs.VERSION }} # backend|g" kustomization.yaml
+          echo "✅ Updated backend tag to ${{ steps.version.outputs.VERSION }}"
           
-          # Update frontend image tag  
-          sed -i "s|newTag:.*# frontend|newTag: ${{ steps.version.outputs.VERSION }} # frontend|g" kustomization.yaml || true
+          # Update frontend image tag with version
+          sed -i "s|newTag:.*# frontend|newTag: ${{ steps.version.outputs.VERSION }} # frontend|g" kustomization.yaml
+          echo "✅ Updated frontend tag to ${{ steps.version.outputs.VERSION }}"
 
       - name: Commit and push
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add k8s/overlays/prod/kustomization.yaml
-          git diff --staged --quiet || git commit -m "chore: update image tags to ${{ steps.version.outputs.VERSION }}"
+          
+          # Add all kustomization changes
+          git add k8s/overlays/dev/kustomization.yaml k8s/overlays/prod/kustomization.yaml 2>/dev/null || true
+          
+          # Determine commit message
+          if [ "${{ startsWith(github.ref, 'refs/tags/v') }}" == "true" ]; then
+            MSG="chore: update prod image tags to ${{ steps.version.outputs.VERSION }}"
+          else
+            MSG="chore: update dev image tags to ${{ steps.sha.outputs.SHORT_SHA }} [skip ci]"
+          fi
+          
+          # Commit if there are changes
+          git diff --staged --quiet || git commit -m "$MSG"
           git push
+
+      - name: Summary
+        run: |
+          echo "## 📦 Kubernetes Manifests Updated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "**Environment:** dev" >> $GITHUB_STEP_SUMMARY
+            echo "**Tag:** \`${{ steps.sha.outputs.SHORT_SHA }}\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Environment:** prod" >> $GITHUB_STEP_SUMMARY
+            echo "**Tag:** \`${{ steps.version.outputs.VERSION }}\`" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Flux will automatically reconcile the changes." >> $GITHUB_STEP_SUMMARY

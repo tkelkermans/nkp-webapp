@@ -46,18 +46,18 @@ Le workflow utilise l'environnement `ntnxlab` pour accéder aux secrets et varia
 
 | Événement | Action |
 |-----------|--------|
-| Push sur `main` | Build des images modifiées, tag `latest` |
-| Tag `v*.*.*` | Build + mise à jour des manifests K8s |
+| Push sur `main` | Build images modifiées → **Update dev overlay avec SHA** → Flux déploie |
+| Tag `v*.*.*` | Build all → **Update prod overlay avec version** → Flux déploie |
 | Pull Request | Build uniquement (pas de push) |
 | Manual (`workflow_dispatch`) | Force build de toutes les images |
 
 ## Tags générés
 
-| Source | Tags créés |
-|--------|------------|
-| Push `main` | `latest`, `main`, `<sha>` |
-| Tag `v1.2.3` | `1.2.3`, `1.2`, `<sha>` |
-| PR #42 | `pr-42` (pas de push) |
+| Source | Tags créés | Manifest mis à jour |
+|--------|------------|---------------------|
+| Push `main` | `latest`, `main`, `<sha>` | `k8s/overlays/dev` |
+| Tag `v1.2.3` | `1.2.3`, `1.2`, `<sha>` | `k8s/overlays/prod` |
+| PR #42 | `pr-42` (pas de push) | Aucun |
 
 ## Créer un Robot Account Harbor
 
@@ -86,16 +86,36 @@ tke-nkpmgmt.ntnxlab.ch:5000/
 
 ## Flux de travail
 
+### Développement (push sur main)
+
 ```
 1. Developer push sur main
         ↓
 2. GitHub Actions (self-hosted runner)
         ↓
-3. Build Docker images
+3. Build Docker images (uniquement si frontend/ ou backend/ modifiés)
         ↓
-4. Push vers Harbor (interne)
+4. Push vers Harbor avec tag SHA (ex: abc1234)
         ↓
-5. Flux détecte nouvelles images
+5. Update k8s/overlays/dev/kustomization.yaml avec le nouveau tag
         ↓
-6. Déploiement automatique sur K8s
+6. Flux détecte le changement de manifest
+        ↓
+7. Déploiement automatique sur dev.tke-poll.ntnxlab.ch
+```
+
+### Production (tag v*.*.*)
+
+```
+1. Créer un tag: git tag v1.2.3 && git push --tags
+        ↓
+2. GitHub Actions build toutes les images
+        ↓
+3. Push vers Harbor avec tag semver (ex: v1.2.3)
+        ↓
+4. Update k8s/overlays/prod/kustomization.yaml avec la version
+        ↓
+5. Flux détecte le changement de manifest
+        ↓
+6. Déploiement automatique sur tke-poll.ntnxlab.ch
 ```

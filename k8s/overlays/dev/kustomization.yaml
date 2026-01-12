@@ -19,14 +19,14 @@ labels:
       environment: development
     includeSelectors: false
 
-# Image tags for dev (same registry as prod)
+# Image tags for dev (updated automatically by GitHub Actions on push to main)
 images:
   - name: realtime-poll-backend
     newName: tke-nkpmgmt.ntnxlab.ch:5000/nkp-webapp/backend
-    newTag: latest
+    newTag: latest # backend-dev
   - name: realtime-poll-frontend
     newName: tke-nkpmgmt.ntnxlab.ch:5000/nkp-webapp/frontend
-    newTag: latest
+    newTag: latest # frontend-dev
 
 # Patches for dev environment
 patches:
