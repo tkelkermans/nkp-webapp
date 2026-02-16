@@ -67,7 +67,7 @@ patches:
     target:
       kind: Deployment
   
-  # Dev Ingress - hostname and TLS
+  # Dev Ingress - hostname, TLS, and external-dns
   - target:
       kind: Ingress
       name: realtime-poll-ingress
@@ -81,6 +81,12 @@ patches:
       - op: replace
         path: /spec/rules/0/host
         value: dev.tke-poll.ntnxlab.ch
+      - op: add
+        path: /metadata/annotations/external-dns.alpha.kubernetes.io~1target
+        value: 5337e70c-90a6-400b-b0a4-25762c8c6462.cfargotunnel.com
+      - op: add
+        path: /metadata/annotations/external-dns.alpha.kubernetes.io~1cloudflare-proxied
+        value: "true"
   
   # Note: Frontend now uses relative URLs (compiled at build time as empty string)
   # No URL patches needed - works on any domain
