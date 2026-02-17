@@ -50,6 +50,7 @@ export function useSocket(options: UseSocketOptions = {}) {
 
     socket.on('disconnect', () => setStatus('disconnected'));
     socket.on('connect_error', () => setStatus('error'));
+    socket.on('reconnect_failed', () => setStatus('reconnection_failed'));
     socket.on('vote-update', (poll: Poll) => onVoteUpdateRef.current?.(poll));
     socket.on('poll-closed', (closedPollId: string) => onPollClosedRef.current?.(closedPollId));
 

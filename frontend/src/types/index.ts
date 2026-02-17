@@ -27,4 +27,13 @@ export interface ApiResponse<T = unknown> {
   message?: string;
 }
 
-export type SocketStatus = 'connected' | 'connecting' | 'disconnected' | 'error';
+export type SocketStatus = 'connected' | 'connecting' | 'disconnected' | 'error' | 'reconnection_failed';
+
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+    Object.setPrototypeOf(this, ApiError.prototype);
+  }
+}

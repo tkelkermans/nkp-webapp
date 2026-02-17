@@ -10,11 +10,12 @@ interface ConnectionStatusProps {
 
 export function ConnectionStatus({ status, className }: ConnectionStatusProps) {
   // Using secondary colors as status indicators (appropriate use as highlights)
-  const statusConfig = {
+  const statusConfig: Record<SocketStatus, { color: string; text: string; pulse: boolean }> = {
     connected: { color: 'bg-secondary-lime', text: 'Connecté', pulse: false },
     connecting: { color: 'bg-secondary-coral', text: 'Connexion...', pulse: true },
     disconnected: { color: 'bg-charcoal-400', text: 'Déconnecté', pulse: false },
     error: { color: 'bg-red-500', text: 'Erreur', pulse: false },
+    reconnection_failed: { color: 'bg-red-500', text: 'Connexion perdue', pulse: false },
   };
 
   const config = statusConfig[status];

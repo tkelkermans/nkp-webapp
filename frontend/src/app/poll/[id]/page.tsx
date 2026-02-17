@@ -2,22 +2,27 @@
 
 import { useEffect, useState, useCallback, use } from 'react';
 import { notFound } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { usePoll, useVote, useUpdatePollCache } from '@/hooks/usePolls';
 import { useSocket } from '@/hooks/useSocket';
-import { PollChart } from '@/components/PollChart';
+import dynamic from 'next/dynamic';
 import { VoteButtons } from '@/components/VoteButtons';
 import { ShareButton } from '@/components/ShareButton';
 import { ConnectionStatus } from '@/components/ConnectionStatus';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { QRCode } from '@/components/QRCode';
 import { cn, formatDate, getTimeRemaining } from '@/lib/utils';
+import { ApiError } from '@/types';
 import type { Poll } from '@/types';
 import toast from 'react-hot-toast';
+
+const PollChart = dynamic(() => import('@/components/PollChart'), { ssr: false });
+const QRCode = dynamic(() => import('@/components/QRCode'), { ssr: false });
 
 interface PollPageProps { params: Promise<{ id: string }>; }
 
 export default function PollPage({ params }: PollPageProps) {
   const { id } = use(params);
+  const queryClient = useQueryClient();
   const { data: poll, isLoading, error } = usePoll(id);
   const voteMutation = useVote();
   const updatePollCache = useUpdatePollCache();
@@ -28,8 +33,11 @@ export default function PollPage({ params }: PollPageProps) {
 
   const handleVoteUpdate = useCallback((updatedPoll: Poll) => { updatePollCache(updatedPoll); }, [updatePollCache]);
   const handlePollClosed = useCallback((closedPollId: string) => {
-    if (closedPollId === id) toast('Ce sondage a été fermé', { icon: '🔒' });
-  }, [id]);
+    if (closedPollId === id) {
+      queryClient.invalidateQueries({ queryKey: ['poll', id] });
+      toast('Ce sondage a été fermé', { icon: '🔒' });
+    }
+  }, [id, queryClient]);
 
   const { status } = useSocket({ pollId: id, onVoteUpdate: handleVoteUpdate, onPollClosed: handlePollClosed });
 
@@ -50,8 +58,10 @@ export default function PollPage({ params }: PollPageProps) {
       setHasVoted(true); setVotedOptionId(optionId);
       toast.success('Vote enregistré !');
     } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        setHasVoted(true);
+      }
       const message = error instanceof Error ? error.message : 'Erreur lors du vote';
-      if (message.includes('déjà voté')) setHasVoted(true);
       toast.error(message);
     }
   };

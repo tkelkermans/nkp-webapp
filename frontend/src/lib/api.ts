@@ -1,4 +1,4 @@
-import type { ApiResponse, Poll, CreatePollInput } from '@/types';
+import { ApiError, type ApiResponse, type Poll, type CreatePollInput } from '@/types';
 
 // Browser: relative URLs (works with any domain via Ingress)
 // SSR: use internal Kubernetes service name (INTERNAL_API_URL is runtime env var)
@@ -15,20 +15,30 @@ class ApiClient {
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${endpoint}`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
     const config: RequestInit = {
       ...options,
       headers: { 'Content-Type': 'application/json', ...options.headers },
       credentials: 'include',
+      signal: controller.signal,
     };
 
     try {
       const response = await fetch(url, config);
       const data: ApiResponse<T> = await response.json();
-      if (!response.ok) throw new Error(data.error || `HTTP error ${response.status}`);
+      if (!response.ok) throw new ApiError(response.status, data.error || `HTTP error ${response.status}`);
       return data;
     } catch (error) {
+      if (error instanceof ApiError) throw error;
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new ApiError(408, 'La requête a expiré');
+      }
       if (error instanceof Error) throw error;
       throw new Error('An unexpected error occurred');
+    } finally {
+      clearTimeout(timeout);
     }
   }
 

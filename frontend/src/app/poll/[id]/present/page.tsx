@@ -1,44 +1,40 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
-import api from '@/lib/api';
+import { usePoll, useUpdatePollCache } from '@/hooks/usePolls';
 import { useSocket } from '@/hooks/useSocket';
 import type { Poll } from '@/types';
-import PollChart from '@/components/PollChart';
+import dynamic from 'next/dynamic';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ConnectionStatus from '@/components/ConnectionStatus';
-import QRCode from '@/components/QRCode';
+
+const PollChart = dynamic(() => import('@/components/PollChart'), { ssr: false });
+const QRCode = dynamic(() => import('@/components/QRCode'), { ssr: false });
 
 export default function PresentPage() {
   const params = useParams();
   const pollId = params.id as string;
   const [poll, setPoll] = useState<Poll | null>(null);
   const [showQR, setShowQR] = useState(true);
-
-  // Charger le sondage initial
-  const { data: initialPoll, isLoading, error } = useQuery({
-    queryKey: ['poll', pollId],
-    queryFn: () => api.getPoll(pollId),
-    enabled: !!pollId,
-    refetchInterval: false,
-  });
+  const { data: fetchedPoll, isLoading, error } = usePoll(pollId);
+  const updatePollCache = useUpdatePollCache();
 
   // Connexion WebSocket pour les mises à jour en temps réel
   const { status } = useSocket({
     pollId,
     onVoteUpdate: (updatedPoll) => {
       setPoll(updatedPoll);
+      updatePollCache(updatedPoll);
     },
   });
 
   // Mettre à jour l'état local quand les données initiales arrivent
   useEffect(() => {
-    if (initialPoll) {
-      setPoll(initialPoll);
+    if (fetchedPoll) {
+      setPoll(fetchedPoll);
     }
-  }, [initialPoll]);
+  }, [fetchedPoll]);
 
   // Raccourci clavier pour afficher/masquer le QR code
   useEffect(() => {

@@ -36,6 +36,7 @@ export function VoteButtons({ poll, onVote, isVoting = false, hasVoted = false, 
             key={option.id}
             onClick={() => handleVote(option.id)}
             disabled={isDisabled || hasVoted}
+            aria-label={`${option.text}: ${option.votes} vote${option.votes !== 1 ? 's' : ''}, ${percentage}%`}
             className={cn(
               'relative w-full p-4 rounded-xl border-2 transition-all duration-200 text-left overflow-hidden group',
               isSelected && 'ring-2 ring-offset-2',
