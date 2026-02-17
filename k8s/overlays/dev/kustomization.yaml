@@ -74,13 +74,13 @@ patches:
     patch: |-
       - op: replace
         path: /spec/tls/0/hosts/0
-        value: dev.tke-poll.ntnxlab.ch
+        value: dev-tke-poll.ntnxlab.ch
       - op: replace
         path: /spec/tls/0/secretName
         value: dev-realtime-poll-tls
       - op: replace
         path: /spec/rules/0/host
-        value: dev.tke-poll.ntnxlab.ch
+        value: dev-tke-poll.ntnxlab.ch
       - op: add
         path: /metadata/annotations/external-dns.alpha.kubernetes.io~1target
         value: 5337e70c-90a6-400b-b0a4-25762c8c6462.cfargotunnel.com
@@ -98,7 +98,7 @@ patches:
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/env/8/value
-        value: "https://dev.tke-poll.ntnxlab.ch"
+        value: "https://dev-tke-poll.ntnxlab.ch"
 
 # ConfigMap for dev
 configMapGenerator:
