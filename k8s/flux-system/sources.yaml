@@ -18,30 +18,3 @@ spec:
     # Exclude non-k8s files
     /*
     !/k8s
-
----
-# ===================================
-# Container Registry Source (for image automation)
-# ===================================
-apiVersion: source.toolkit.fluxcd.io/v1beta2
-kind: OCIRepository
-metadata:
-  name: realtime-poll-backend
-  namespace: flux-system
-spec:
-  interval: 5m
-  url: oci://ghcr.io/tkelkermans/realtime-poll-backend
-  ref:
-    semver: ">=1.0.0"
-
----
-apiVersion: source.toolkit.fluxcd.io/v1beta2
-kind: OCIRepository
-metadata:
-  name: realtime-poll-frontend
-  namespace: flux-system
-spec:
-  interval: 5m
-  url: oci://ghcr.io/tkelkermans/realtime-poll-frontend
-  ref:
-    semver: ">=1.0.0"

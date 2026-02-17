@@ -27,9 +27,9 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --requirepass devpassword123
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "devpassword123", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -47,7 +47,7 @@ services:
     environment:
       - NODE_ENV=development
       - PORT=3001
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=redis://:devpassword123@redis:6379
       - CORS_ORIGIN=http://localhost:3000
       - SESSION_SECRET=dev-secret-change-in-production
       - RATE_LIMIT_WINDOW_MS=60000

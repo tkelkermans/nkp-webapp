@@ -32,3 +32,19 @@ spec:
     matchLabels:
       app.kubernetes.io/name: realtime-poll
       app.kubernetes.io/component: frontend
+
+---
+# Redis PDB
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: redis-pdb
+  labels:
+    app.kubernetes.io/name: realtime-poll
+    app.kubernetes.io/component: redis
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: realtime-poll
+      app.kubernetes.io/component: redis

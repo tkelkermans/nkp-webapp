@@ -2,6 +2,7 @@
 # Flux Image Automation (Optional)
 # ===================================
 # Automatically update image tags when new versions are pushed
+# NOTE: Image automation is currently disabled. CI/CD pipeline handles image tag updates via sed.
 
 # Image Update Automation
 ---
@@ -47,7 +48,7 @@ spec:
     name: backend
   policy:
     semver:
-      range: ">=1.0.0"
+      range: ">=1.0.0 <2.0.0"
 
 ---
 apiVersion: image.toolkit.fluxcd.io/v1beta2
@@ -60,7 +61,7 @@ spec:
     name: frontend
   policy:
     semver:
-      range: ">=1.0.0"
+      range: ">=1.0.0 <2.0.0"
 
 # Image Repositories
 ---
