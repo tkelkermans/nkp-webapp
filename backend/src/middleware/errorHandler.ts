@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import { AppError, type ApiResponse } from '../types/index.js';
 import { config } from '../utils/config.js';
+import logger from '../utils/logger.js';
 
 /**
  * Middleware de gestion globale des erreurs
@@ -12,7 +13,7 @@ export function errorHandler(
   res: Response<ApiResponse>,
   _next: NextFunction
 ): void {
-  console.error('❌ Error:', err);
+  logger.error({ err }, 'Request error');
 
   // Erreur de validation Zod
   if (err instanceof ZodError) {

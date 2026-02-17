@@ -21,20 +21,20 @@ export const config: AppConfig = {
 
 /**
  * Vérifie que la configuration est valide
+ * Uses dynamic import for logger to avoid circular dependency (logger imports config)
  */
-export function validateConfig(): void {
+export async function validateConfig(): Promise<void> {
+  const { logger } = await import('./logger.js');
+
   if (config.nodeEnv === 'production' && config.sessionSecret === 'development-secret-change-me') {
-    console.warn('⚠️  WARNING: Using default session secret in production!');
+    logger.warn('Using default session secret in production!');
   }
 
   if (config.port < 1 || config.port > 65535) {
     throw new Error(`Invalid port: ${config.port}`);
   }
 
-  console.log('✅ Configuration loaded successfully');
-  console.log(`   Environment: ${config.nodeEnv}`);
-  console.log(`   Port: ${config.port}`);
-  console.log(`   Redis: ${config.redisUrl}`);
+  logger.info({ environment: config.nodeEnv, port: config.port, redis: config.redisUrl }, 'Configuration loaded successfully');
 }
 
 export default config;

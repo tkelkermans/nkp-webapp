@@ -1,9 +1,17 @@
 import { nanoid } from 'nanoid';
 import redis, { redisPub } from './redis.js';
 import type { Poll, PollOption, CreatePollInput } from '../types/index.js';
+import { AppError } from '../types/index.js';
 import { config } from '../utils/config.js';
 import logger from '../utils/logger.js';
 // Note: sanitizeString removed - React handles XSS protection automatically
+
+function checkPipelineResults(results: [Error | null, unknown][] | null): void {
+  if (!results) throw new AppError(503, 'Redis pipeline failed');
+  for (const [err] of results) {
+    if (err) throw new AppError(503, 'Redis error: ' + err.message);
+  }
+}
 
 // Clés Redis
 const POLL_KEY_PREFIX = 'poll:';
@@ -78,7 +86,8 @@ export async function createPoll(input: CreatePollInput): Promise<Poll> {
   pipeline.expire(`${POLL_VOTES_PREFIX}${pollId}`, ttlSeconds);
   pipeline.expire(`${POLL_VOTERS_PREFIX}${pollId}`, ttlSeconds);
 
-  await pipeline.exec();
+  const pipelineResults = await pipeline.exec();
+  checkPipelineResults(pipelineResults);
 
   logger.info({ pollId, question: poll.question, optionsCount: options.length }, 'Poll created');
   return poll;
@@ -152,52 +161,67 @@ export async function hasVoted(pollId: string, voterId: string): Promise<boolean
 }
 
 /**
- * Enregistre un vote
+ * Lua script for atomic vote recording.
+ * Keys: poll_key, votes_key, voters_key
+ * Args: optionId, voterId
+ * Returns: -1 (poll not found), -2 (poll closed), -3 (invalid option), -4 (already voted), 1 (success)
+ */
+const VOTE_LUA_SCRIPT = `
+local poll = redis.call('HGETALL', KEYS[1])
+if #poll == 0 then return -1 end
+
+local isActive = nil
+for i = 1, #poll, 2 do
+  if poll[i] == 'isActive' then
+    isActive = poll[i + 1]
+    break
+  end
+end
+if isActive ~= 'true' then return -2 end
+
+local optionExists = redis.call('HEXISTS', KEYS[2], ARGV[1])
+if optionExists == 0 then return -3 end
+
+local alreadyVoted = redis.call('SISMEMBER', KEYS[3], ARGV[2])
+if alreadyVoted == 1 then return -4 end
+
+redis.call('HINCRBY', KEYS[2], ARGV[1], 1)
+redis.call('SADD', KEYS[3], ARGV[2])
+return 1
+`;
+
+/**
+ * Enregistre un vote (atomique via Lua script)
  */
 export async function vote(
   pollId: string,
   optionId: string,
   voterId: string
 ): Promise<Poll | null> {
-  // Vérifier que le sondage existe et est actif
-  const poll = await getPollById(pollId);
+  const pollKey = `${POLL_KEY_PREFIX}${pollId}`;
+  const votesKey = `${POLL_VOTES_PREFIX}${pollId}`;
+  const votersKey = `${POLL_VOTERS_PREFIX}${pollId}`;
 
-  if (!poll) {
-    throw new Error('Sondage non trouvé');
+  // Atomic vote via Redis Lua script (ioredis eval method, not JS eval)
+  const result = await redis.eval(
+    VOTE_LUA_SCRIPT, 3, pollKey, votesKey, votersKey, optionId, voterId
+  ) as number;
+
+  switch (result) {
+    case -1:
+      throw new AppError(404, 'Sondage non trouvé');
+    case -2:
+      throw new AppError(410, 'Ce sondage est fermé');
+    case -3:
+      throw new AppError(400, 'Option invalide');
+    case -4:
+      throw new AppError(409, 'Vous avez déjà voté pour ce sondage');
   }
 
-  if (!poll.isActive) {
-    throw new Error('Ce sondage est fermé');
-  }
-
-  // Vérifier que l'option existe
-  const option = poll.options.find((o) => o.id === optionId);
-  if (!option) {
-    throw new Error('Option invalide');
-  }
-
-  // Vérifier si l'utilisateur a déjà voté
-  const alreadyVoted = await hasVoted(pollId, voterId);
-  if (alreadyVoted) {
-    throw new Error('Vous avez déjà voté pour ce sondage');
-  }
-
-  // Transaction atomique pour le vote
-  const pipeline = redis.pipeline();
-
-  // Incrémenter le compteur de votes pour l'option
-  pipeline.hincrby(`${POLL_VOTES_PREFIX}${pollId}`, optionId, 1);
-
-  // Enregistrer le voteur pour éviter les doublons
-  pipeline.sadd(`${POLL_VOTERS_PREFIX}${pollId}`, voterId);
-
-  await pipeline.exec();
-
-  // Récupérer le sondage mis à jour
+  // Fetch updated poll and publish via Redis pub/sub
   const updatedPoll = await getPollById(pollId);
 
   if (updatedPoll) {
-    // Publier la mise à jour via Redis pub/sub
     await redisPub.publish(
       `poll:${pollId}:updates`,
       JSON.stringify(updatedPoll)
@@ -239,6 +263,7 @@ export async function deletePoll(pollId: string): Promise<boolean> {
   pipeline.zrem(ACTIVE_POLLS_KEY, pollId);
 
   const results = await pipeline.exec();
+  checkPipelineResults(results);
 
   // Vérifier si au moins une clé a été supprimée
   const deleted = results?.some((r) => r[1] && (r[1] as number) > 0) ?? false;

@@ -239,30 +239,13 @@ router.post(
     const { optionId } = voteValidation.data;
     const voterId = generateVoterId(req);
 
-    try {
-      const poll = await PollModel.vote(id!, optionId, voterId);
+    const poll = await PollModel.vote(id!, optionId, voterId);
 
-      res.json({
-        success: true,
-        data: poll!,
-        message: 'Vote enregistré',
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erreur lors du vote';
-      
-      // Déterminer le code de statut approprié
-      let statusCode = 400;
-      if (message.includes('non trouvé')) {
-        statusCode = 404;
-      } else if (message.includes('déjà voté')) {
-        statusCode = 409; // Conflict
-      }
-
-      res.status(statusCode).json({
-        success: false,
-        error: message,
-      });
-    }
+    res.json({
+      success: true,
+      data: poll!,
+      message: 'Vote enregistré',
+    });
   })
 );
 
@@ -405,6 +388,17 @@ router.post(
  *       404:
  *         description: Sondage non trouvé
  */
+/**
+ * Protects CSV cells from formula injection by prefixing dangerous characters
+ */
+function sanitizeCsvCell(value: string): string {
+  const dangerous = ['=', '+', '-', '@', '\t', '\r'];
+  if (dangerous.some(ch => value.startsWith(ch))) {
+    return "'" + value;
+  }
+  return value;
+}
+
 router.get(
   '/:id/export',
   asyncHandler(async (req: Request, res: Response) => {
@@ -440,7 +434,7 @@ router.get(
 
     // Format CSV
     const csvRows = [
-      ['Question', poll.question],
+      ['Question', sanitizeCsvCell(poll.question)],
       ['Créé le', poll.createdAt],
       ['Expire le', poll.expiresAt || 'N/A'],
       ['Total votes', poll.totalVotes.toString()],
@@ -450,10 +444,10 @@ router.get(
     ];
 
     for (const option of poll.options) {
-      const percentage = poll.totalVotes > 0 
-        ? ((option.votes / poll.totalVotes) * 100).toFixed(1) 
+      const percentage = poll.totalVotes > 0
+        ? ((option.votes / poll.totalVotes) * 100).toFixed(1)
         : '0';
-      csvRows.push([option.text, option.votes.toString(), `${percentage}%`]);
+      csvRows.push([sanitizeCsvCell(option.text), option.votes.toString(), `${percentage}%`]);
     }
 
     const csvContent = csvRows

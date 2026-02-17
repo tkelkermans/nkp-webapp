@@ -22,6 +22,8 @@ jest.mock('../models/redis.js', () => ({
     sismember: jest.fn().mockResolvedValue(0),
     hincrby: jest.fn().mockResolvedValue(1),
     sadd: jest.fn().mockResolvedValue(1),
+    eval: jest.fn().mockResolvedValue(1),
+    call: jest.fn().mockResolvedValue(null),
   },
   redisPub: {
     publish: jest.fn().mockResolvedValue(1),

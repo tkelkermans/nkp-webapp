@@ -6,7 +6,7 @@ import helmet from 'helmet';
 import { config, validateConfig } from './utils/config.js';
 import { initializeRedis, closeRedis } from './models/redis.js';
 import { cleanupExpiredPolls } from './models/poll.js';
-import { initializeSocket } from './socket/index.js';
+import { initializeSocket, shutdownSocket } from './socket/index.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { apiLimiter } from './middleware/rateLimit.js';
 import { metricsMiddleware } from './middleware/metrics.js';
@@ -103,7 +103,7 @@ app.use(errorHandler);
 async function startServer(): Promise<void> {
   try {
     // Valider la configuration
-    validateConfig();
+    await validateConfig();
 
     // Initialiser Redis
     await initializeRedis();
@@ -114,7 +114,7 @@ async function startServer(): Promise<void> {
     // Démarrer le nettoyage périodique des sondages expirés
     setInterval(
       () => {
-        cleanupExpiredPolls().catch(console.error);
+        cleanupExpiredPolls().catch((err) => logger.error({ err }, 'Failed to cleanup expired polls'));
       },
       60 * 60 * 1000 // Toutes les heures
     );
@@ -149,7 +149,10 @@ async function shutdown(signal: string): Promise<void> {
     logger.info('HTTP server closed');
   });
 
-  // Fermer les connexions Redis
+  // Shutdown socket.io and Redis pub/sub first
+  await shutdownSocket();
+
+  // Then close Redis connections
   await closeRedis();
 
   logger.info('Shutdown complete');
