@@ -10,6 +10,8 @@ import type {
   Poll,
 } from '../types/index.js';
 
+let ioInstance: SocketServer<ClientToServerEvents, ServerToClientEvents> | null = null;
+
 /**
  * Configure et initialise Socket.io avec Redis pub/sub
  */
@@ -41,7 +43,7 @@ export function initializeSocket(httpServer: HttpServer): SocketServer<
     // Rejoindre une room de sondage
     socket.on('join-poll', (pollId: string) => {
       // Valider l'ID du sondage
-      if (!pollId || typeof pollId !== 'string' || pollId.length > 50) {
+      if (!pollId || typeof pollId !== 'string' || pollId.length > 50 || !/^[a-zA-Z0-9_-]+$/.test(pollId)) {
         socket.emit('error', 'ID de sondage invalide');
         return;
       }
@@ -60,6 +62,9 @@ export function initializeSocket(httpServer: HttpServer): SocketServer<
 
     // Quitter une room de sondage
     socket.on('leave-poll', (pollId: string) => {
+      if (!pollId || typeof pollId !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(pollId)) {
+        return;
+      }
       socket.leave(`poll:${pollId}`);
       logger.debug({ socketId: socket.id, pollId }, 'Client left poll');
     });
@@ -79,8 +84,27 @@ export function initializeSocket(httpServer: HttpServer): SocketServer<
   // Souscrire aux mises à jour Redis
   setupRedisSubscription(io);
 
+  ioInstance = io;
   logger.info('Socket.io initialized');
   return io;
+}
+
+/**
+ * Gracefully shuts down Socket.io and Redis pub/sub subscriptions
+ */
+export async function shutdownSocket(): Promise<void> {
+  if (ioInstance) {
+    // Disconnect all sockets
+    const sockets = await ioInstance.fetchSockets();
+    for (const socket of sockets) {
+      socket.disconnect(true);
+    }
+    ioInstance.close();
+    logger.info('Socket.io shut down');
+  }
+  // Unsubscribe from Redis pub/sub
+  await redisSub.punsubscribe();
+  logger.info('Redis pub/sub unsubscribed');
 }
 
 /**
