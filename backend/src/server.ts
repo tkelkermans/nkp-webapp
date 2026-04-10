@@ -133,7 +133,7 @@ async function startServer(): Promise<void> {
       }, 'RealTime Poll API Server started');
     });
   } catch (error) {
-    logger.error({ error }, 'Failed to start server');
+    logger.error({ err: error }, 'Failed to start server');
     process.exit(1);
   }
 }
@@ -165,7 +165,7 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 
 // Gestion des erreurs non capturées
 process.on('uncaughtException', (error) => {
-  logger.fatal({ error }, 'Uncaught Exception');
+  logger.fatal({ err: error }, 'Uncaught Exception');
   process.exit(1);
 });
 

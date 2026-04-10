@@ -42,15 +42,19 @@ redis.on('reconnecting', () => {
  */
 export async function initializeRedis(): Promise<void> {
   try {
-    await redis.connect();
-    await redisPub.connect();
-    await redisSub.connect();
-    
+    // Guard against auto-connect race: RedisStore (rate-limit-redis) sends a
+    // SCRIPT LOAD at import time, which triggers ioredis auto-connect.
+    // Calling .connect() on an already-connecting client throws
+    // "Redis is already connecting/connected".
+    if (redis.status === 'wait') await redis.connect();
+    if (redisPub.status === 'wait') await redisPub.connect();
+    if (redisSub.status === 'wait') await redisSub.connect();
+
     // Test de la connexion
     await redis.ping();
     logger.info('Redis connections established');
   } catch (error) {
-    logger.error({ error }, 'Failed to connect to Redis');
+    logger.error({ err: error }, 'Failed to connect to Redis');
     throw error;
   }
 }
