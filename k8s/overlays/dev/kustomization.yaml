@@ -22,7 +22,7 @@ labels:
 images:
   - name: realtime-poll-backend
     newName: tke-nkpmgmt.ntnxlab.ch:5000/nkp-webapp/backend
-    newTag: a134022 # backend-dev
+    newTag: 79921f8 # backend-dev
   - name: realtime-poll-frontend
     newName: tke-nkpmgmt.ntnxlab.ch:5000/nkp-webapp/frontend
     newTag: a134022 # frontend-dev
